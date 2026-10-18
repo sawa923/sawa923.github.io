@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>山田 太郎 | Personal Site</title>
+  <meta name="description" content="山田 太郎の個人サイトです。プロフィール、制作物、連絡先を掲載しています。">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="logo" href="#top">Taro Yamada</a>
+      <nav>
+        <a href="#about">About</a>
+        <a href="#works">Works</a>
+        <a href="#contact">Contact</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="top">
+    <section class="hero container">
+      <p class="eyebrow">Hello, I'm</p>
+      <h1>山田 太郎</h1>
+      <p class="lead">ここに一言の自己紹介が入ります。たとえば「東京で働くソフトウェアエンジニアです。」のように。</p>
+      <a class="button" href="#contact">連絡する</a>
+    </section>
+
+    <section id="about" class="container section">
+      <h2>About</h2>
+      <div class="about-grid">
+        <img class="avatar" src="avatar.svg" alt="プロフィール画像" width="160" height="160">
+        <div>
+          <p>ここにプロフィール文が入ります。経歴、得意なこと、最近取り組んでいることなどを2〜3段落で書きます。</p>
+          <ul class="tags">
+            <li>スキル 1</li>
+            <li>スキル 2</li>
+            <li>スキル 3</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="works" class="container section">
+      <h2>Works</h2>
+      <div class="cards">
+        <article class="card">
+          <h3>プロジェクト A</h3>
+          <p>制作物の短い説明が入ります。</p>
+          <a href="#">詳しく見る →</a>
+        </article>
+        <article class="card">
+          <h3>プロジェクト B</h3>
+          <p>制作物の短い説明が入ります。</p>
+          <a href="#">詳しく見る →</a>
+        </article>
+        <article class="card">
+          <h3>プロジェクト C</h3>
+          <p>制作物の短い説明が入ります。</p>
+          <a href="#">詳しく見る →</a>
+        </article>
+      </div>
+    </section>
+
+    <section id="contact" class="container section">
+      <h2>Contact</h2>
+      <p>お気軽にご連絡ください。</p>
+      <ul class="links">
+        <li><a href="mailto:you@example.com">Email</a></li>
+        <li><a href="https://github.com/your-name">GitHub</a></li>
+        <li><a href="https://x.com/your-name">X</a></li>
+      </ul>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <small>&copy; <span id="year">2026</span> 山田 太郎</small>
+    </div>
+  </footer>
+  <script>document.getElementById('year').textContent = new Date().getFullYear();</script>
+</body>
+</html>
