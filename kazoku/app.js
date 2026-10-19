@@ -111,13 +111,20 @@ const DEFAULT_CATEGORIES = [{
     { key: "ayu", name: "あゆ" },
     { key: "note", name: "備考" },
   ],
+}, {
+  // type: "weight" は体重の表とグラフ（書き込めるのは WEIGHT_OWNER だけ）
+  id: "weight",
+  name: "体重",
+  type: "weight",
+  items: [],
 }];
-const SETTINGS_VERSION = 2;
+const SETTINGS_VERSION = 3;   // 2 で「予定」、3 で「体重」を追加
+const WEIGHT_OWNER = "たく";
 // 列ごとの文字色（列の名前で決める）
 const COLUMN_COLORS = { "たく": "blue", "あゆ": "pink" };
 // チェックした人ごとの✓の色（チェックした人の名前で決める）
 const CHECK_COLORS = { "たく": "green" };
-const colorClass = (item) => COLUMN_COLORS[item.name] ? ` color-${COLUMN_COLORS[item.name]}` : "";   // 2 で「予定」を追加
+const colorClass = (item) => COLUMN_COLORS[item.name] ? ` color-${COLUMN_COLORS[item.name]}` : "";
 const WEEKDAYS = "日月火水木金土";
 const settingsRef = () => doc(db, "chores", "_settings");
 
@@ -140,9 +147,11 @@ function watchSettings() {
   unsubscribers.push(onSnapshot(settingsRef(), (snap) => {
     const data = snap.exists() ? snap.data() : {};
     let saved = data.categories;
-    // 予定表ができる前の設定には「予定」を足す（一度保存したあとは消しても戻らない）
-    if (saved && (data.version || 1) < 2 && !saved.some((c) => c.id === "yotei")) {
-      saved = [...saved, DEFAULT_CATEGORIES.find((c) => c.id === "yotei")];
+    // 古い設定には、あとから増えたタブを足す（一度保存したあとは消しても戻らない）
+    for (const [id, version] of [["yotei", 2], ["weight", 3]]) {
+      if (saved && (data.version || 1) < version && !saved.some((c) => c.id === id)) {
+        saved = [...saved, DEFAULT_CATEGORIES.find((c) => c.id === id)];
+      }
     }
     categories = saved && saved.length ? saved : DEFAULT_CATEGORIES;
     if (currentTab !== "logs" && !currentCategory()) currentTab = categories[0].id;
@@ -203,8 +212,10 @@ function watchMonth() {
   const y = month.getFullYear(), m = month.getMonth() + 1;
   const days = new Date(y, m, 0).getDate();
   $("month-label").textContent = `${y}年${m}月`;
+  // 体重の前日比のため、前の月の分も読み込む
+  const prev = new Date(y, m - 2, 1);
   const q = query(collection(db, "chores"),
-    where("date", ">=", ymd(y, m, 1)), where("date", "<=", ymd(y, m, days)));
+    where("date", ">=", ymd(prev.getFullYear(), prev.getMonth() + 1, 1)), where("date", "<=", ymd(y, m, days)));
   checks = new Map();
   renderGrid();
   unwatchMonth = onSnapshot(q, (snap) => {
@@ -219,20 +230,28 @@ function renderGrid() {
   const cat = currentCategory();
   if (!cat) return;
   // 書き込み中のマスを消さないよう、入力が終わるまで描き直しを待つ
-  if (document.activeElement?.classList.contains("text-cell")) { renderPending = true; return; }
+  if (document.activeElement?.matches(".text-cell, .weight-input")) { renderPending = true; return; }
   renderPending = false;
   const isText = cat.type === "text";
+  const isWeight = cat.type === "weight";
+  const canWeigh = myName === WEIGHT_OWNER;
   $("grid").classList.toggle("text-grid", isText);
-  $("hint-text").textContent = isText
+  $("grid").classList.toggle("weight-grid", isWeight);
+  $("hint-text").textContent = isWeight
+    ? (canWeigh ? "体重を入れるとグラフと前日比が出ます。ほかの場所を押すと保存されます。" : `${WEIGHT_OWNER}の体重です（見るだけ）。`)
+    : isText
     ? "マスを押すと書き込めます。ほかの場所を押すと保存されます。"
     : planMode
       ? "予定を入れるモードです。マスを押すと○が付きます。もう一度押すと外れます。"
       : "終わったらマスを押すとチェックが付きます。もう一度押すと外れます。";
-  $("plan-toggle").hidden = isText;
+  $("plan-toggle").hidden = isText || isWeight;
+  $("edit-toggle").hidden = isWeight;
+  $("weight-chart").hidden = !isWeight;
   const y = month.getFullYear(), m = month.getMonth() + 1;
   const days = new Date(y, m, 0).getDate();
   const todayStr = today();
-  $("no-items").hidden = cat.items.length > 0;
+  $("no-items").hidden = isWeight || cat.items.length > 0;
+  const weights = isWeight ? weightSeries() : null;
 
   const head = $("grid-head");
   head.replaceChildren();
@@ -240,6 +259,12 @@ function renderGrid() {
   for (const [label, cls] of [["日付", "col-date"], ["曜日", "col-wd"]]) {
     const th = document.createElement("th");
     th.className = cls;
+    th.textContent = label;
+    tr.append(th);
+  }
+  for (const label of isWeight ? ["体重", "前日比"] : []) {
+    const th = document.createElement("th");
+    th.className = "text-head";
     th.textContent = label;
     tr.append(th);
   }
@@ -274,6 +299,11 @@ function renderGrid() {
     wdCell.className = "wd";
     wdCell.textContent = `(${WEEKDAYS[wd]})`;
     row.append(dateCell, wdCell);
+    if (isWeight) {
+      row.append(...weightCells(date, weights, canWeigh, `${m}月${d}日`));
+      body.append(row);
+      continue;
+    }
 
     for (const item of cat.items) {
       const id = checkId(cat, date, item);
@@ -314,6 +344,113 @@ function renderGrid() {
     }
     body.append(row);
   }
+  if (isWeight) renderWeightChart(weights, y, m, days);
+}
+
+// ---- 体重 ----
+// 1日1件、chores の「日付_weight」に kg を数値で保存する
+const weightId = (date) => `${date}_weight`;
+
+// 読み込んだ範囲（前の月から表示中の月まで）の体重を日付順に並べる
+function weightSeries() {
+  return [...checks.values()]
+    .filter((x) => x.cat === "weight" && typeof x.kg === "number")
+    .map((x) => ({ date: x.date, kg: x.kg }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+const fmtKg = (kg) => kg.toFixed(1);
+
+function weightCells(date, weights, canWeigh, label) {
+  const idx = weights.findIndex((w) => w.date === date);
+  const here = weights[idx];
+  // 前日比は、その前に記録した日との差
+  const before = idx > 0 ? weights[idx - 1] : null;
+  const kgCell = document.createElement("td");
+  if (canWeigh) {
+    const input = document.createElement("input");
+    input.className = "weight-input";
+    input.type = "number";
+    input.inputMode = "decimal";
+    input.step = "0.1";
+    input.min = "20";
+    input.max = "300";
+    input.value = here ? fmtKg(here.kg) : "";
+    input.setAttribute("aria-label", `${label}の体重（kg）`);
+    input.addEventListener("blur", () => setTimeout(() => {
+      const v = input.value.trim();
+      const kg = Math.round(Number(v) * 10) / 10;
+      if (!v) {
+        if (here) deleteDoc(doc(db, "chores", weightId(date)));
+      } else if (kg >= 20 && kg <= 300 && kg !== here?.kg) {
+        setDoc(doc(db, "chores", weightId(date)), {
+          title: "体重", cat: "weight", key: "kg", date, done: true, kg, by: myName, createdAt: serverTimestamp(),
+        });
+      }
+      if (renderPending) renderGrid();
+    }, 0));
+    input.addEventListener("keydown", (e) => { if (e.key === "Enter") input.blur(); });
+    const unit = document.createElement("span");
+    unit.className = "unit";
+    unit.textContent = "kg";
+    kgCell.append(input, unit);
+  } else if (here) {
+    kgCell.textContent = `${fmtKg(here.kg)} kg`;
+  }
+  const diffCell = document.createElement("td");
+  diffCell.className = "weight-diff";
+  if (here && before) {
+    const diff = Math.round((here.kg - before.kg) * 10) / 10;
+    diffCell.textContent = `${diff > 0 ? "+" : diff < 0 ? "−" : "±"}${fmtKg(Math.abs(diff))} kg`;
+    diffCell.classList.add(diff > 0 ? "up" : diff < 0 ? "down" : "same");
+  }
+  return [kgCell, diffCell];
+}
+
+// 表示中の月の折れ線グラフ（SVG）
+function renderWeightChart(weights, y, m, days) {
+  const box = $("weight-chart");
+  const first = ymd(y, m, 1), last = ymd(y, m, days);
+  const pts = weights.filter((w) => w.date >= first && w.date <= last);
+  if (!pts.length) {
+    box.innerHTML = `<p class="muted chart-empty">${m}月の記録はまだありません。</p>`;
+    return;
+  }
+  const W = 340, H = 170, L = 40, R = 12, T = 14, B = 26;
+  let lo = Math.min(...pts.map((p) => p.kg)), hi = Math.max(...pts.map((p) => p.kg));
+  // 上下に少し余白をとり、目盛りは 0.5kg 単位に丸める
+  lo = Math.floor((lo - 0.3) * 2) / 2;
+  hi = Math.ceil((hi + 0.3) * 2) / 2;
+  const x = (day) => L + (W - L - R) * (days === 1 ? 0.5 : (day - 1) / (days - 1));
+  const yv = (kg) => T + (H - T - B) * (1 - (kg - lo) / (hi - lo));
+  const day = (date) => Number(date.slice(8));
+  const ns = "http://www.w3.org/2000/svg";
+  const el = (tag, attrs, text) => {
+    const e = document.createElementNS(ns, tag);
+    for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+    if (text != null) e.textContent = text;
+    return e;
+  };
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": `${m}月の体重のグラフ` });
+  const mid = (lo + hi) / 2;
+  for (const kg of [lo, mid, hi]) {
+    svg.append(el("line", { x1: L, x2: W - R, y1: yv(kg), y2: yv(kg), class: "grid-line" }));
+    svg.append(el("text", { x: L - 6, y: yv(kg) + 4, "text-anchor": "end", class: "axis" }, kg.toFixed(1)));
+  }
+  for (const d of [1, 10, 20, days]) {
+    svg.append(el("text", { x: x(d), y: H - 8, "text-anchor": "middle", class: "axis" }, `${d}日`));
+  }
+  svg.append(el("polyline", { points: pts.map((p) => `${x(day(p.date))},${yv(p.kg)}`).join(" "), class: "line" }));
+  for (const p of pts) {
+    const g = el("g", {});
+    g.append(el("circle", { cx: x(day(p.date)), cy: yv(p.kg), r: 4, class: "dot" }));
+    g.append(el("title", {}, `${m}月${day(p.date)}日 ${fmtKg(p.kg)} kg`));
+    svg.append(g);
+  }
+  // 最新の値だけ数字を添える
+  const lastPt = pts[pts.length - 1];
+  svg.append(el("text", { x: x(day(lastPt.date)), y: yv(lastPt.kg) - 9, "text-anchor": "middle", class: "value" }, fmtKg(lastPt.kg)));
+  box.replaceChildren(svg);
 }
 
 function textCell(id, date, cat, item, value, label) {
