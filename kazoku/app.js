@@ -183,7 +183,7 @@ function renderGrid() {
 
 function toggleCheck(id, date, chore, done) {
   if (done) {
-    if (confirm(`${chore.name}（${done.by}）のチェックを外しますか？`)) deleteDoc(doc(db, "chores", id));
+    deleteDoc(doc(db, "chores", id));
   } else {
     setDoc(doc(db, "chores", id), {
       title: chore.name, key: chore.key, date, done: true, by: myName, createdAt: serverTimestamp(),
