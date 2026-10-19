@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
   <title>わが家ノート</title>
-  <link rel="stylesheet" href="style.css?v=10">
+  <link rel="stylesheet" href="style.css?v=11">
 </head>
 <body>
   <header class="bar">
@@ -46,6 +46,7 @@
           <button id="this-month" class="ghost">今月</button>
         </div>
         <p class="muted hint"><span id="hint-text"></span>
+          <button id="plan-toggle" class="small plan-toggle" aria-pressed="false">予定</button>
           <button id="edit-toggle" class="small" aria-expanded="false" aria-controls="editor">項目を編集</button></p>
         <div id="editor" class="editor" hidden>
           <form id="cat-form" class="row">
@@ -85,6 +86,6 @@
     </section>
   </main>
 
-  <script type="module" src="app.js?v=10"></script>
+  <script type="module" src="app.js?v=11"></script>
 </body>
 </html>

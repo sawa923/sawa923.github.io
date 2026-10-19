@@ -225,7 +225,10 @@ function renderGrid() {
   $("grid").classList.toggle("text-grid", isText);
   $("hint-text").textContent = isText
     ? "マスを押すと書き込めます。ほかの場所を押すと保存されます。"
-    : "終わったらマスを押すとチェックが付きます。もう一度押すと外れます。";
+    : planMode
+      ? "予定を入れるモードです。マスを押すと○が付きます。もう一度押すと外れます。"
+      : "終わったらマスを押すとチェックが付きます。もう一度押すと外れます。";
+  $("plan-toggle").hidden = isText;
   const y = month.getFullYear(), m = month.getMonth() + 1;
   const days = new Date(y, m, 0).getDate();
   const todayStr = today();
@@ -282,12 +285,18 @@ function renderGrid() {
         continue;
       }
       const btn = document.createElement("button");
-      btn.className = "cell" + (done ? " done" + (CHECK_COLORS[done.by] ? ` by-${CHECK_COLORS[done.by]}` : "") : "");
-      btn.setAttribute("aria-label", `${m}月${d}日 ${item.name}` + (done ? `（${done.by}）` : ""));
+      // done が false の文書は「予定」の○（チェックとしては数えない）
+      const planned = done && done.done === false;
+      const checked = done && !planned;
+      btn.className = "cell"
+        + (checked ? " done" + (CHECK_COLORS[done.by] ? ` by-${CHECK_COLORS[done.by]}` : "") : "")
+        + (planned ? " planned" : "");
+      btn.setAttribute("aria-label", `${m}月${d}日 ${item.name}`
+        + (checked ? `（${done.by}）` : planned ? "（予定）" : ""));
       if (done) {
         const mark = document.createElement("span");
         mark.className = "mark";
-        mark.textContent = "✓";
+        mark.textContent = planned ? "○" : "✓";
         const by = document.createElement("span");
         by.className = "by";
         by.textContent = done.by;
@@ -331,15 +340,28 @@ function textCell(id, date, cat, item, value, label) {
   return ta;
 }
 
+// 「予定」ボタンがオンの間は、マスを押すと✓の代わりに○（予定）を付け外しする
+let planMode = false;
+
 function toggleCheck(id, date, cat, item, done) {
-  if (done) {
+  const planned = done && done.done === false;
+  // 同じ種類の印がもう付いていれば外す。違う種類なら上書きする（○→✓ など）
+  if (done && planned === planMode) {
     deleteDoc(doc(db, "chores", id));
   } else {
     setDoc(doc(db, "chores", id), {
-      title: item.name, cat: cat.id, key: item.key, date, done: true, by: myName, createdAt: serverTimestamp(),
+      title: item.name, cat: cat.id, key: item.key, date, done: !planMode, by: myName, createdAt: serverTimestamp(),
     });
   }
 }
+
+function setPlanMode(on) {
+  planMode = on;
+  $("plan-toggle").setAttribute("aria-pressed", String(on));
+  $("plan-toggle").classList.toggle("on", on);
+  renderGrid();
+}
+$("plan-toggle").onclick = () => setPlanMode(!planMode);
 
 $("prev-month").onclick = () => { month.setMonth(month.getMonth() - 1); watchMonth(); };
 $("next-month").onclick = () => { month.setMonth(month.getMonth() + 1); watchMonth(); };

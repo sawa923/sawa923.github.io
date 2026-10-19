@@ -3,6 +3,8 @@
   --blue: #2f6fd0;
   --check: #6aa81a;
   --check-bg: #e6f5d6;
+  --plan: #b08900;
+  --plan-bg: #fff6c7;
   --sun: #d0473a;
   --sat: #2f6fd0;
   --today: #fdf0e8;
@@ -30,6 +32,8 @@
     --blue: #7fb0ff;
     --check: #a6e34a;
     --check-bg: #2e3d24;
+    --plan: #f2d45c;
+    --plan-bg: #3d3720;
     --sat: #7fb0ff;
     --today: #3a2c25;
   }
@@ -155,6 +159,9 @@ button.small { padding: 2px 8px; font-size: .8rem; color: var(--muted); }
 .cell .mark { color: var(--accent); font-weight: 700; font-size: 1.1rem; }
 .cell.done.by-green { background: var(--check-bg); }
 .cell.by-green .mark { color: var(--check); }
+.cell.planned { background: var(--plan-bg); }
+.cell.planned .mark { color: var(--plan); }
+.plan-toggle.on { background: var(--plan-bg); border-color: var(--plan); color: var(--plan); font-weight: 700; }
 .cell .by { font-size: .62rem; color: var(--muted); max-width: 4.5em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ---- 項目の編集 ---- */
