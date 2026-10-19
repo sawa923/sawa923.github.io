@@ -105,6 +105,7 @@ button.small { padding: 2px 8px; font-size: .8rem; color: var(--muted); }
 .grid-wrap { margin: 0 -4px; }
 .grid {
   width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
   background: var(--card);
   font-size: .85rem;
@@ -118,6 +119,8 @@ button.small { padding: 2px 8px; font-size: .8rem; color: var(--muted); }
   padding: 6px 2px;
   z-index: 1;
 }
+.grid .col-date { width: 5.8em; }
+.grid .col-wd { width: 3.2em; }
 .grid .chore-head span { display: inline-block; width: 1em; line-height: 1.2; word-break: break-all; }
 .grid tbody th { font-weight: normal; white-space: nowrap; padding: 0 6px; }
 .grid .wd { white-space: nowrap; padding: 0 4px; }
