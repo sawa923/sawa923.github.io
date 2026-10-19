@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
   <title>わが家ノート</title>
-  <link rel="stylesheet" href="style.css?v=6">
+  <link rel="stylesheet" href="style.css?v=7">
 </head>
 <body>
   <header class="bar">
@@ -45,7 +45,7 @@
           <button id="next-month" aria-label="次の月">›</button>
           <button id="this-month" class="ghost">今月</button>
         </div>
-        <p class="muted hint">終わったらマスを押すとチェックが付きます。もう一度押すと外れます。
+        <p class="muted hint"><span id="hint-text"></span>
           <button id="edit-toggle" class="small" aria-expanded="false" aria-controls="editor">項目を編集</button></p>
         <div id="editor" class="editor" hidden>
           <form id="cat-form" class="row">
@@ -64,7 +64,7 @@
         </div>
         <p id="no-items" class="muted" hidden>「項目を編集」から列にする項目を追加してください。</p>
         <div class="grid-wrap">
-          <table class="grid">
+          <table class="grid" id="grid">
             <thead id="grid-head"></thead>
             <tbody id="grid-body"></tbody>
           </table>
@@ -85,6 +85,6 @@
     </section>
   </main>
 
-  <script type="module" src="app.js?v=6"></script>
+  <script type="module" src="app.js?v=7"></script>
 </body>
 </html>
