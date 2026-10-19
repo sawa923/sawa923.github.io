@@ -66,47 +66,109 @@ onAuthStateChanged(auth, async (user) => {
   $("user-name").textContent = myName;
   $("log-date").value = today();
   show("view-app");
-  watchChores();
+  selectTab(currentTab);
+  watchSettings();
+  watchMonth();
   scrollToToday();
   watchLogs(user);
 });
 
-// ---- タブ ----
-for (const tab of document.querySelectorAll(".tab")) {
-  tab.onclick = () => {
-    for (const t of document.querySelectorAll(".tab")) t.classList.toggle("active", t === tab);
-    $("tab-chores").hidden = tab.dataset.tab !== "chores";
-    $("tab-logs").hidden = tab.dataset.tab !== "logs";
-  };
-}
-
-// ---- 家事（月ごとの表） ----
-// 列に並べる家事。増やす・並べ替えるときはここを書き換える（key は変えない）
-const CHORES = [
-  { key: "toilet", name: "トイレ掃除" },
-  { key: "bath", name: "お風呂掃除" },
-  { key: "entrance", name: "玄関掃除" },
-  { key: "mop", name: "モップ掛け" },
-  { key: "vacuum", name: "床掃除機" },
-  { key: "trash", name: "ゴミ出し" },
-];
+// ---- カテゴリ（家事など）の月ごとの表 ----
+// カテゴリと項目の設定は chores/_settings に保存する（Firestore のルールを変えずに済むように
+// chores コレクションの決まりである title と done も持たせる）。
+// チェック1つ = chores の文書1つ。家事は「日付_項目」、ほかは「日付_カテゴリ_項目」が ID。
+const DEFAULT_CATEGORIES = [{
+  id: "kaji",
+  name: "家事",
+  items: [
+    { key: "toilet", name: "トイレ掃除" },
+    { key: "bath", name: "お風呂掃除" },
+    { key: "entrance", name: "玄関掃除" },
+    { key: "mop", name: "モップ掛け" },
+    { key: "vacuum", name: "床掃除機" },
+    { key: "trash", name: "ゴミ出し" },
+  ],
+}];
 const WEEKDAYS = "日月火水木金土";
+const settingsRef = () => doc(db, "chores", "_settings");
 
-let month = new Date();   // 表示中の月（日付は使わない）
+let categories = DEFAULT_CATEGORIES;
+let currentTab = "kaji";   // カテゴリの id か "logs"
+let month = new Date();    // 表示中の月（日付は使わない）
 month.setDate(1);
-let checks = new Map();   // "2026-10-01_toilet" → { by }
+let checks = new Map();    // 文書 ID → { by }
 let unwatchMonth = null;
+
+const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+const currentCategory = () => categories.find((c) => c.id === currentTab);
+const checkId = (cat, date, item) => cat.id === "kaji" ? `${date}_${item.key}` : `${date}_${cat.id}_${item.key}`;
 
 function ymd(y, m, d) {
   return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 }
 
-function watchChores() {
+function watchSettings() {
+  unsubscribers.push(onSnapshot(settingsRef(), (snap) => {
+    const saved = snap.exists() ? snap.data().categories : null;
+    categories = saved && saved.length ? saved : DEFAULT_CATEGORIES;
+    if (currentTab !== "logs" && !currentCategory()) currentTab = categories[0].id;
+    renderTabs();
+    renderGrid();
+    renderEditor();
+  }));
+}
+
+function saveCategories(next) {
+  return setDoc(settingsRef(), { title: "設定", done: false, categories: next });
+}
+
+// ---- タブ ----
+function renderTabs() {
+  const nav = $("tabs");
+  nav.replaceChildren();
+  const add = (label, id, extra = "") => {
+    const b = document.createElement("button");
+    b.className = "tab" + extra + (id === currentTab ? " active" : "");
+    b.textContent = label;
+    b.onclick = () => selectTab(id);
+    nav.append(b);
+    return b;
+  };
+  for (const c of categories) add(c.name, c.id);
+  add("記録", "logs");
+  const plus = document.createElement("button");
+  plus.className = "tab add-tab";
+  plus.textContent = "＋";
+  plus.setAttribute("aria-label", "カテゴリを追加");
+  plus.onclick = addCategory;
+  nav.append(plus);
+}
+
+function selectTab(id) {
+  currentTab = id;
+  $("tab-grid").hidden = id === "logs";
+  $("tab-logs").hidden = id !== "logs";
+  $("editor").hidden = true;
+  renderTabs();
+  if (id !== "logs") { renderGrid(); renderEditor(); scrollToToday(); }
+}
+
+async function addCategory() {
+  const name = prompt("追加するカテゴリの名前（例：買い物、ペット）")?.trim();
+  if (!name) return;
+  const cat = { id: newId(), name: name.slice(0, 30), items: [] };
+  await saveCategories([...categories, cat]);
+  selectTab(cat.id);
+  $("editor").hidden = false;
+  $("item-name").focus();
+}
+
+// ---- 表 ----
+function watchMonth() {
   if (unwatchMonth) unwatchMonth();
   const y = month.getFullYear(), m = month.getMonth() + 1;
   const days = new Date(y, m, 0).getDate();
   $("month-label").textContent = `${y}年${m}月`;
-  // チェック1つ = chores コレクションの文書1つ（ID は「日付_家事」）
   const q = query(collection(db, "chores"),
     where("date", ">=", ymd(y, m, 1)), where("date", "<=", ymd(y, m, days)));
   checks = new Map();
@@ -118,9 +180,12 @@ function watchChores() {
 }
 
 function renderGrid() {
+  const cat = currentCategory();
+  if (!cat) return;
   const y = month.getFullYear(), m = month.getMonth() + 1;
   const days = new Date(y, m, 0).getDate();
   const todayStr = today();
+  $("no-items").hidden = cat.items.length > 0;
 
   const head = $("grid-head");
   head.replaceChildren();
@@ -130,11 +195,11 @@ function renderGrid() {
     th.textContent = label;
     tr.append(th);
   }
-  for (const c of CHORES) {
+  for (const item of cat.items) {
     const th = document.createElement("th");
     th.className = "chore-head";
     const span = document.createElement("span");
-    span.textContent = c.name;
+    span.textContent = item.name;
     th.append(span);
     tr.append(th);
   }
@@ -157,13 +222,13 @@ function renderGrid() {
     wdCell.textContent = `(${WEEKDAYS[wd]})`;
     row.append(dateCell, wdCell);
 
-    for (const c of CHORES) {
-      const id = `${date}_${c.key}`;
+    for (const item of cat.items) {
+      const id = checkId(cat, date, item);
       const done = checks.get(id);
       const cell = document.createElement("td");
       const btn = document.createElement("button");
       btn.className = "cell" + (done ? " done" : "");
-      btn.setAttribute("aria-label", `${m}月${d}日 ${c.name}` + (done ? `（${done.by}）` : ""));
+      btn.setAttribute("aria-label", `${m}月${d}日 ${item.name}` + (done ? `（${done.by}）` : ""));
       if (done) {
         const mark = document.createElement("span");
         mark.className = "mark";
@@ -173,7 +238,7 @@ function renderGrid() {
         by.textContent = done.by;
         btn.append(mark, by);
       }
-      btn.onclick = () => toggleCheck(id, date, c, done);
+      btn.onclick = () => toggleCheck(id, date, cat, item, done);
       cell.append(btn);
       row.append(cell);
     }
@@ -181,23 +246,83 @@ function renderGrid() {
   }
 }
 
-function toggleCheck(id, date, chore, done) {
+function toggleCheck(id, date, cat, item, done) {
   if (done) {
     deleteDoc(doc(db, "chores", id));
   } else {
     setDoc(doc(db, "chores", id), {
-      title: chore.name, key: chore.key, date, done: true, by: myName, createdAt: serverTimestamp(),
+      title: item.name, cat: cat.id, key: item.key, date, done: true, by: myName, createdAt: serverTimestamp(),
     });
   }
 }
 
-$("prev-month").onclick = () => { month.setMonth(month.getMonth() - 1); watchChores(); };
-$("next-month").onclick = () => { month.setMonth(month.getMonth() + 1); watchChores(); };
-$("this-month").onclick = () => { month = new Date(); month.setDate(1); watchChores(); scrollToToday(); };
+$("prev-month").onclick = () => { month.setMonth(month.getMonth() - 1); watchMonth(); };
+$("next-month").onclick = () => { month.setMonth(month.getMonth() + 1); watchMonth(); };
+$("this-month").onclick = () => { month = new Date(); month.setDate(1); watchMonth(); scrollToToday(); };
 
 function scrollToToday() {
   requestAnimationFrame(() => document.querySelector("#grid-body tr.today")?.scrollIntoView({ block: "center" }));
 }
+
+// ---- 項目の編集 ----
+$("edit-toggle").onclick = () => { $("editor").hidden = !$("editor").hidden; };
+
+function updateCurrent(change) {
+  return saveCategories(categories.map((c) => c.id === currentTab ? change(c) : c));
+}
+
+function renderEditor() {
+  const cat = currentCategory();
+  if (!cat) return;
+  $("cat-name").value = cat.name;
+  const list = $("item-list");
+  list.replaceChildren();
+  cat.items.forEach((item, i) => {
+    const li = document.createElement("li");
+    const name = document.createElement("span");
+    name.textContent = item.name;
+    const up = document.createElement("button");
+    up.className = "small";
+    up.textContent = "↑";
+    up.setAttribute("aria-label", `${item.name}を左へ`);
+    up.disabled = i === 0;
+    up.onclick = () => updateCurrent((c) => {
+      const items = [...c.items];
+      [items[i - 1], items[i]] = [items[i], items[i - 1]];
+      return { ...c, items };
+    });
+    const del = document.createElement("button");
+    del.className = "small";
+    del.textContent = "削除";
+    del.onclick = () => updateCurrent((c) => ({ ...c, items: c.items.filter((x) => x.key !== item.key) }));
+    li.append(name, up, del);
+    list.append(li);
+  });
+  $("cat-delete").disabled = categories.length <= 1;
+}
+
+$("item-form").onsubmit = async (e) => {
+  e.preventDefault();
+  const name = $("item-name").value.trim();
+  if (!name) return;
+  await updateCurrent((c) => ({ ...c, items: [...c.items, { key: newId(), name: name.slice(0, 20) }] }));
+  $("item-name").value = "";
+};
+
+$("cat-form").onsubmit = (e) => {
+  e.preventDefault();
+  const name = $("cat-name").value.trim();
+  if (name) updateCurrent((c) => ({ ...c, name: name.slice(0, 30) }));
+};
+
+$("cat-delete").onclick = () => {
+  const cat = currentCategory();
+  if (!cat || categories.length <= 1) return;
+  if (!confirm(`カテゴリ「${cat.name}」を表から消しますか？`)) return;
+  currentTab = categories.find((c) => c.id !== cat.id).id;
+  saveCategories(categories.filter((c) => c.id !== cat.id));
+  selectTab(currentTab);
+};
 
 // ---- 記録 ----
 function today() {
