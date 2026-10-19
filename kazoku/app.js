@@ -385,10 +385,16 @@ function repeatValue(repeat) {
   return repeat.type === "weekly" ? "weekly" : String(repeat.n);
 }
 
-function setRepeat(key, repeat) {
-  return updateCurrent((c) => ({
+async function setRepeat(key, repeat) {
+  const catId = currentTab;
+  await updateCurrent((c) => ({
     ...c, items: c.items.map((x) => x.key === key ? { ...x, repeat } : x),
   }));
+  // 繰り返しを変えたら、本日以降に手で付けた○や消した印をいったん片付けて、新しい設定どおりにする
+  const snap = await getDocs(query(collection(db, "chores"), where("date", ">=", today())));
+  await Promise.all(snap.docs
+    .filter((d) => { const x = d.data(); return x.cat === catId && x.key === key && x.done === false; })
+    .map((d) => deleteDoc(d.ref)));
 }
 
 function repeatControls(item) {
