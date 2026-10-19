@@ -148,7 +148,7 @@ function selectTab(id) {
   currentTab = id;
   $("tab-grid").hidden = id === "logs";
   $("tab-logs").hidden = id !== "logs";
-  $("editor").hidden = true;
+  setEditor(false);
   renderTabs();
   if (id !== "logs") { renderGrid(); renderEditor(); scrollToToday(); }
 }
@@ -159,7 +159,7 @@ async function addCategory() {
   const cat = { id: newId(), name: name.slice(0, 30), items: [] };
   await saveCategories([...categories, cat]);
   selectTab(cat.id);
-  $("editor").hidden = false;
+  setEditor(true);
   $("item-name").focus();
 }
 
@@ -266,7 +266,13 @@ function scrollToToday() {
 }
 
 // ---- 項目の編集 ----
-$("edit-toggle").onclick = () => { $("editor").hidden = !$("editor").hidden; };
+function setEditor(open) {
+  $("editor").hidden = !open;
+  $("edit-toggle").textContent = open ? "編集を閉じる" : "項目を編集";
+  $("edit-toggle").setAttribute("aria-expanded", String(open));
+}
+$("edit-toggle").onclick = () => setEditor($("editor").hidden);
+$("editor-close").onclick = () => setEditor(false);
 
 function updateCurrent(change) {
   return saveCategories(categories.map((c) => c.id === currentTab ? change(c) : c));

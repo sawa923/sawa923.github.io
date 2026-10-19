@@ -27,6 +27,7 @@
   }
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 body {
   margin: 0;
   background: var(--bg);
@@ -162,4 +163,5 @@ button.small { padding: 2px 8px; font-size: .8rem; color: var(--muted); }
 .item-list { list-style: none; margin: 0; padding: 0; }
 .item-list li { display: flex; align-items: center; gap: 6px; padding: 6px 0; border-bottom: 1px solid var(--line); }
 .item-list li span { flex: 1; }
-.danger { align-self: flex-start; color: var(--error); }
+.editor-foot { display: flex; justify-content: space-between; gap: 8px; }
+.danger { color: var(--error); }
