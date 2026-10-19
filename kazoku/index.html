@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>わが家ノート</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="bar">
+    <h1>わが家ノート</h1>
+    <div id="user-box" hidden>
+      <span id="user-name"></span>
+      <button id="logout" class="ghost">ログアウト</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="view-setup" class="panel" hidden>
+      <h2>まだ準備中です</h2>
+      <p><code>kazoku/config.js</code> に Firebase の設定を貼り付けると使えるようになります。</p>
+    </section>
+
+    <section id="view-login" class="panel" hidden>
+      <h2>家族専用のページです</h2>
+      <p>登録された Google アカウントでログインしてください。</p>
+      <button id="login" class="primary">Google でログイン</button>
+      <p id="login-error" class="error" hidden></p>
+    </section>
+
+    <section id="view-denied" class="panel" hidden>
+      <h2>このアカウントはまだ登録されていません</h2>
+      <p>管理している家族に、次のメールアドレスを登録してもらってください。</p>
+      <p><strong id="denied-email"></strong></p>
+    </section>
+
+    <section id="view-app" hidden>
+      <nav class="tabs">
+        <button class="tab active" data-tab="chores">家事</button>
+        <button class="tab" data-tab="logs">記録</button>
+      </nav>
+
+      <div id="tab-chores" class="tab-body">
+        <form id="chore-form" class="row">
+          <input id="chore-title" placeholder="例：お風呂そうじ" maxlength="100" required>
+          <select id="chore-assignee"></select>
+          <button class="primary">追加</button>
+        </form>
+        <label class="toggle"><input type="checkbox" id="show-done"> 終わったものも表示</label>
+        <ul id="chore-list" class="list"></ul>
+        <p id="chore-empty" class="muted" hidden>家事はまだありません。</p>
+      </div>
+
+      <div id="tab-logs" class="tab-body" hidden>
+        <form id="log-form">
+          <div class="row">
+            <input type="date" id="log-date" required>
+          </div>
+          <textarea id="log-text" rows="3" placeholder="今日のできごと" maxlength="2000" required></textarea>
+          <button class="primary">記録する</button>
+        </form>
+        <div id="log-list"></div>
+        <p id="log-empty" class="muted" hidden>記録はまだありません。</p>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

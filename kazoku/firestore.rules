@@ -1,0 +1,37 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // members コレクションに自分のメールアドレスの文書がある人だけを家族とみなす
+    function isFamily() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && exists(/databases/$(database)/documents/members/$(request.auth.token.email));
+    }
+
+    // 名簿は家族なら読めるが、書き換えは Firebase コンソールからのみ
+    match /members/{email} {
+      allow read: if isFamily();
+      allow write: if false;
+    }
+
+    match /chores/{id} {
+      allow read, delete: if isFamily();
+      allow create, update: if isFamily()
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() <= 100
+        && request.resource.data.done is bool;
+    }
+
+    // 記録は家族なら誰でも読めて書けるが、消せるのは書いた本人だけ
+    match /logs/{id} {
+      allow read: if isFamily();
+      allow create: if isFamily()
+        && request.resource.data.authorUid == request.auth.uid
+        && request.resource.data.text is string
+        && request.resource.data.text.size() <= 2000;
+      allow delete: if isFamily() && resource.data.authorUid == request.auth.uid;
+    }
+  }
+}
