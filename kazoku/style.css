@@ -1,6 +1,8 @@
 :root {
   --pink: #d63f8c;
   --blue: #2f6fd0;
+  --check: #6aa81a;
+  --check-bg: #e6f5d6;
   --sun: #d0473a;
   --sat: #2f6fd0;
   --today: #fdf0e8;
@@ -26,6 +28,8 @@
     --sun: #ff8a7d;
     --pink: #ff8cc6;
     --blue: #7fb0ff;
+    --check: #a6e34a;
+    --check-bg: #2e3d24;
     --sat: #7fb0ff;
     --today: #3a2c25;
   }
@@ -149,6 +153,8 @@ button.small { padding: 2px 8px; font-size: .8rem; color: var(--muted); }
 }
 .cell.done { background: color-mix(in srgb, var(--accent) 22%, transparent); }
 .cell .mark { color: var(--accent); font-weight: 700; font-size: 1.1rem; }
+.cell.done.by-green { background: var(--check-bg); }
+.cell.by-green .mark { color: var(--check); }
 .cell .by { font-size: .62rem; color: var(--muted); max-width: 4.5em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ---- 項目の編集 ---- */

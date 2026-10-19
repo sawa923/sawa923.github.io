@@ -115,6 +115,8 @@ const DEFAULT_CATEGORIES = [{
 const SETTINGS_VERSION = 2;
 // 列ごとの文字色（列の名前で決める）
 const COLUMN_COLORS = { "たく": "blue", "あゆ": "pink" };
+// チェックした人ごとの✓の色（チェックした人の名前で決める）
+const CHECK_COLORS = { "たく": "green" };
 const colorClass = (item) => COLUMN_COLORS[item.name] ? ` color-${COLUMN_COLORS[item.name]}` : "";   // 2 で「予定」を追加
 const WEEKDAYS = "日月火水木金土";
 const settingsRef = () => doc(db, "chores", "_settings");
@@ -280,7 +282,7 @@ function renderGrid() {
         continue;
       }
       const btn = document.createElement("button");
-      btn.className = "cell" + (done ? " done" : "");
+      btn.className = "cell" + (done ? " done" + (CHECK_COLORS[done.by] ? ` by-${CHECK_COLORS[done.by]}` : "") : "");
       btn.setAttribute("aria-label", `${m}月${d}日 ${item.name}` + (done ? `（${done.by}）` : ""));
       if (done) {
         const mark = document.createElement("span");
