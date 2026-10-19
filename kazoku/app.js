@@ -297,10 +297,14 @@ function renderGrid() {
         const mark = document.createElement("span");
         mark.className = "mark";
         mark.textContent = planned ? "○" : "✓";
-        const by = document.createElement("span");
-        by.className = "by";
-        by.textContent = done.by;
-        btn.append(mark, by);
+        btn.append(mark);
+        // ○（予定）には名前を出さない
+        if (checked) {
+          const by = document.createElement("span");
+          by.className = "by";
+          by.textContent = done.by;
+          btn.append(by);
+        }
       }
       btn.onclick = () => toggleCheck(id, date, cat, item, done);
       cell.append(btn);
