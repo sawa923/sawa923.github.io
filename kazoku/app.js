@@ -101,7 +101,18 @@ const DEFAULT_CATEGORIES = [{
     { key: "vacuum", name: "床掃除機" },
     { key: "trash", name: "ゴミ出し" },
   ],
+}, {
+  // type: "text" はマスに文字を書き込む表（予定表など）
+  id: "yotei",
+  name: "予定",
+  type: "text",
+  items: [
+    { key: "taku", name: "たく" },
+    { key: "ayu", name: "あゆ" },
+    { key: "note", name: "備考" },
+  ],
 }];
+const SETTINGS_VERSION = 2;   // 2 で「予定」を追加
 const WEEKDAYS = "日月火水木金土";
 const settingsRef = () => doc(db, "chores", "_settings");
 
@@ -122,7 +133,12 @@ function ymd(y, m, d) {
 
 function watchSettings() {
   unsubscribers.push(onSnapshot(settingsRef(), (snap) => {
-    const saved = snap.exists() ? snap.data().categories : null;
+    const data = snap.exists() ? snap.data() : {};
+    let saved = data.categories;
+    // 予定表ができる前の設定には「予定」を足す（一度保存したあとは消しても戻らない）
+    if (saved && (data.version || 1) < 2 && !saved.some((c) => c.id === "yotei")) {
+      saved = [...saved, DEFAULT_CATEGORIES.find((c) => c.id === "yotei")];
+    }
     categories = saved && saved.length ? saved : DEFAULT_CATEGORIES;
     if (currentTab !== "logs" && !currentCategory()) currentTab = categories[0].id;
     renderTabs();
@@ -132,7 +148,7 @@ function watchSettings() {
 }
 
 function saveCategories(next) {
-  return setDoc(settingsRef(), { title: "設定", done: false, categories: next });
+  return setDoc(settingsRef(), { title: "設定", done: false, version: SETTINGS_VERSION, categories: next });
 }
 
 // ---- タブ ----
@@ -192,9 +208,19 @@ function watchMonth() {
   });
 }
 
+let renderPending = false;
+
 function renderGrid() {
   const cat = currentCategory();
   if (!cat) return;
+  // 書き込み中のマスを消さないよう、入力が終わるまで描き直しを待つ
+  if (document.activeElement?.classList.contains("text-cell")) { renderPending = true; return; }
+  renderPending = false;
+  const isText = cat.type === "text";
+  $("grid").classList.toggle("text-grid", isText);
+  $("hint-text").textContent = isText
+    ? "マスを押すと書き込めます。ほかの場所を押すと保存されます。"
+    : "終わったらマスを押すとチェックが付きます。もう一度押すと外れます。";
   const y = month.getFullYear(), m = month.getMonth() + 1;
   const days = new Date(y, m, 0).getDate();
   const todayStr = today();
@@ -211,10 +237,15 @@ function renderGrid() {
   }
   for (const item of cat.items) {
     const th = document.createElement("th");
-    th.className = "chore-head";
-    const span = document.createElement("span");
-    span.textContent = item.name;
-    th.append(span);
+    if (isText) {
+      th.className = "text-head";
+      th.textContent = item.name;
+    } else {
+      th.className = "chore-head";
+      const span = document.createElement("span");
+      span.textContent = item.name;
+      th.append(span);
+    }
     tr.append(th);
   }
   head.append(tr);
@@ -240,6 +271,11 @@ function renderGrid() {
       const id = checkId(cat, date, item);
       const done = checks.get(id);
       const cell = document.createElement("td");
+      if (isText) {
+        cell.append(textCell(id, date, cat, item, done?.text || "", `${m}月${d}日 ${item.name}`));
+        row.append(cell);
+        continue;
+      }
       const btn = document.createElement("button");
       btn.className = "cell" + (done ? " done" : "");
       btn.setAttribute("aria-label", `${m}月${d}日 ${item.name}` + (done ? `（${done.by}）` : ""));
@@ -258,6 +294,36 @@ function renderGrid() {
     }
     body.append(row);
   }
+}
+
+function textCell(id, date, cat, item, value, label) {
+  const ta = document.createElement("textarea");
+  ta.className = "text-cell";
+  ta.rows = 1;
+  ta.maxLength = 200;
+  ta.value = value;
+  ta.setAttribute("aria-label", label);
+  const fit = () => { ta.style.height = "auto"; ta.style.height = ta.scrollHeight + "px"; };
+  ta.addEventListener("input", fit);
+  requestAnimationFrame(fit);
+  ta.addEventListener("blur", () => {
+    // フォーカスが次のマスへ移ってから保存する（描き直しで次のマスが消えないように）
+    setTimeout(() => {
+      const text = ta.value.trim();
+      if (text !== value) {
+        value = text;
+        if (text) {
+          setDoc(doc(db, "chores", id), {
+            title: item.name, cat: cat.id, key: item.key, date, done: true, text, by: myName, createdAt: serverTimestamp(),
+          });
+        } else {
+          deleteDoc(doc(db, "chores", id));
+        }
+      }
+      if (renderPending) renderGrid();
+    }, 0);
+  });
+  return ta;
 }
 
 function toggleCheck(id, date, cat, item, done) {
