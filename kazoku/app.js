@@ -114,7 +114,7 @@ const DEFAULT_CATEGORIES = [{
 }];
 const SETTINGS_VERSION = 2;
 // 列ごとの文字色（列の名前で決める）
-const COLUMN_COLORS = { "あゆ": "pink" };
+const COLUMN_COLORS = { "たく": "blue", "あゆ": "pink" };
 const colorClass = (item) => COLUMN_COLORS[item.name] ? ` color-${COLUMN_COLORS[item.name]}` : "";   // 2 で「予定」を追加
 const WEEKDAYS = "日月火水木金土";
 const settingsRef = () => doc(db, "chores", "_settings");
