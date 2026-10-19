@@ -190,8 +190,9 @@ function renderGrid() {
   const head = $("grid-head");
   head.replaceChildren();
   const tr = document.createElement("tr");
-  for (const label of ["日付", "曜日"]) {
+  for (const [label, cls] of [["日付", "col-date"], ["曜日", "col-wd"]]) {
     const th = document.createElement("th");
+    th.className = cls;
     th.textContent = label;
     tr.append(th);
   }
