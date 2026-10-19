@@ -17,8 +17,8 @@ const {
   getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut,
 } = await import(`${SDK}/firebase-auth.js`);
 const {
-  getFirestore, collection, doc, addDoc, updateDoc, deleteDoc, getDocs,
-  onSnapshot, query, orderBy, limit, serverTimestamp,
+  getFirestore, collection, doc, addDoc, setDoc, deleteDoc, getDocs,
+  onSnapshot, query, where, orderBy, limit, serverTimestamp,
 } = await import(`${SDK}/firebase-firestore.js`);
 
 const app = initializeApp(firebaseConfig);
@@ -43,6 +43,7 @@ $("logout").onclick = () => signOut(auth);
 onAuthStateChanged(auth, async (user) => {
   for (const off of unsubscribers) off();
   unsubscribers = [];
+  if (unwatchMonth) { unwatchMonth(); unwatchMonth = null; }
 
   if (!user) {
     $("user-box").hidden = true;
@@ -63,10 +64,10 @@ onAuthStateChanged(auth, async (user) => {
   }
   myName = members.find((m) => m.email === user.email)?.name || user.displayName || user.email;
   $("user-name").textContent = myName;
-  fillAssigneeSelect($("chore-assignee"), "");
   $("log-date").value = today();
   show("view-app");
   watchChores();
+  scrollToToday();
   watchLogs(user);
 });
 
@@ -79,81 +80,124 @@ for (const tab of document.querySelectorAll(".tab")) {
   };
 }
 
-// ---- 家事 ----
-function fillAssigneeSelect(select, current) {
-  select.replaceChildren();
-  const options = [{ value: "", label: "担当：未定" }, ...members.map((m) => ({ value: m.name, label: m.name }))];
-  if (current && !members.some((m) => m.name === current)) options.push({ value: current, label: current });
-  for (const o of options) {
-    const opt = document.createElement("option");
-    opt.value = o.value;
-    opt.textContent = o.label;
-    select.append(opt);
-  }
-  select.value = current;
+// ---- 家事（月ごとの表） ----
+// 列に並べる家事。増やす・並べ替えるときはここを書き換える（key は変えない）
+const CHORES = [
+  { key: "toilet", name: "トイレ掃除" },
+  { key: "bath", name: "お風呂掃除" },
+  { key: "entrance", name: "玄関掃除" },
+  { key: "mop", name: "モップ掛け" },
+  { key: "vacuum", name: "床掃除機" },
+  { key: "trash", name: "ゴミ出し" },
+];
+const WEEKDAYS = "日月火水木金土";
+
+let month = new Date();   // 表示中の月（日付は使わない）
+month.setDate(1);
+let checks = new Map();   // "2026-10-01_toilet" → { by }
+let unwatchMonth = null;
+
+function ymd(y, m, d) {
+  return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 }
 
-let chores = [];
 function watchChores() {
-  const q = query(collection(db, "chores"), orderBy("createdAt", "desc"));
-  unsubscribers.push(onSnapshot(q, (snap) => {
-    chores = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-    renderChores();
-  }));
-}
-
-function renderChores() {
-  const showDone = $("show-done").checked;
-  const visible = chores
-    .filter((c) => showDone || !c.done)
-    .sort((a, b) => Number(a.done) - Number(b.done));
-  const list = $("chore-list");
-  list.replaceChildren();
-  for (const c of visible) {
-    const li = document.createElement("li");
-    li.classList.toggle("done", !!c.done);
-
-    const check = document.createElement("input");
-    check.type = "checkbox";
-    check.checked = !!c.done;
-    check.onchange = () => updateDoc(doc(db, "chores", c.id), { done: check.checked });
-
-    const title = document.createElement("span");
-    title.className = "title";
-    title.textContent = c.title;
-
-    const who = document.createElement("select");
-    fillAssigneeSelect(who, c.assignee || "");
-    who.onchange = () => updateDoc(doc(db, "chores", c.id), { assignee: who.value });
-
-    const del = document.createElement("button");
-    del.className = "small";
-    del.textContent = "削除";
-    del.onclick = () => {
-      if (confirm("「" + c.title + "」を削除しますか？")) deleteDoc(doc(db, "chores", c.id));
-    };
-
-    li.append(check, title, who, del);
-    list.append(li);
-  }
-  $("chore-empty").hidden = visible.length > 0;
-}
-$("show-done").onchange = renderChores;
-
-$("chore-form").onsubmit = async (e) => {
-  e.preventDefault();
-  const title = $("chore-title").value.trim();
-  if (!title) return;
-  await addDoc(collection(db, "chores"), {
-    title,
-    assignee: $("chore-assignee").value,
-    done: false,
-    createdBy: myName,
-    createdAt: serverTimestamp(),
+  if (unwatchMonth) unwatchMonth();
+  const y = month.getFullYear(), m = month.getMonth() + 1;
+  const days = new Date(y, m, 0).getDate();
+  $("month-label").textContent = `${y}年${m}月`;
+  // チェック1つ = chores コレクションの文書1つ（ID は「日付_家事」）
+  const q = query(collection(db, "chores"),
+    where("date", ">=", ymd(y, m, 1)), where("date", "<=", ymd(y, m, days)));
+  checks = new Map();
+  renderGrid();
+  unwatchMonth = onSnapshot(q, (snap) => {
+    checks = new Map(snap.docs.map((d) => [d.id, d.data()]));
+    renderGrid();
   });
-  $("chore-title").value = "";
-  $("chore-assignee").value = "";
-};
+}
+
+function renderGrid() {
+  const y = month.getFullYear(), m = month.getMonth() + 1;
+  const days = new Date(y, m, 0).getDate();
+  const todayStr = today();
+
+  const head = $("grid-head");
+  head.replaceChildren();
+  const tr = document.createElement("tr");
+  for (const label of ["日付", "曜日"]) {
+    const th = document.createElement("th");
+    th.textContent = label;
+    tr.append(th);
+  }
+  for (const c of CHORES) {
+    const th = document.createElement("th");
+    th.className = "chore-head";
+    const span = document.createElement("span");
+    span.textContent = c.name;
+    th.append(span);
+    tr.append(th);
+  }
+  head.append(tr);
+
+  const body = $("grid-body");
+  body.replaceChildren();
+  for (let d = 1; d <= days; d++) {
+    const date = ymd(y, m, d);
+    const wd = new Date(y, m - 1, d).getDay();
+    const row = document.createElement("tr");
+    if (wd === 0) row.classList.add("sun");
+    if (wd === 6) row.classList.add("sat");
+    if (date === todayStr) row.classList.add("today");
+
+    const dateCell = document.createElement("th");
+    dateCell.textContent = `${m}月${d}日`;
+    const wdCell = document.createElement("td");
+    wdCell.className = "wd";
+    wdCell.textContent = `(${WEEKDAYS[wd]})`;
+    row.append(dateCell, wdCell);
+
+    for (const c of CHORES) {
+      const id = `${date}_${c.key}`;
+      const done = checks.get(id);
+      const cell = document.createElement("td");
+      const btn = document.createElement("button");
+      btn.className = "cell" + (done ? " done" : "");
+      btn.setAttribute("aria-label", `${m}月${d}日 ${c.name}` + (done ? `（${done.by}）` : ""));
+      if (done) {
+        const mark = document.createElement("span");
+        mark.className = "mark";
+        mark.textContent = "✓";
+        const by = document.createElement("span");
+        by.className = "by";
+        by.textContent = done.by;
+        btn.append(mark, by);
+      }
+      btn.onclick = () => toggleCheck(id, date, c, done);
+      cell.append(btn);
+      row.append(cell);
+    }
+    body.append(row);
+  }
+}
+
+function toggleCheck(id, date, chore, done) {
+  if (done) {
+    if (confirm(`${chore.name}（${done.by}）のチェックを外しますか？`)) deleteDoc(doc(db, "chores", id));
+  } else {
+    setDoc(doc(db, "chores", id), {
+      title: chore.name, key: chore.key, date, done: true, by: myName, createdAt: serverTimestamp(),
+    });
+  }
+}
+
+$("prev-month").onclick = () => { month.setMonth(month.getMonth() - 1); watchChores(); };
+$("next-month").onclick = () => { month.setMonth(month.getMonth() + 1); watchChores(); };
+$("this-month").onclick = () => { month = new Date(); month.setDate(1); watchChores(); scrollToToday(); };
+
+function scrollToToday() {
+  requestAnimationFrame(() => document.querySelector("#grid-body tr.today")?.scrollIntoView({ block: "center" }));
+}
 
 // ---- 記録 ----
 function today() {

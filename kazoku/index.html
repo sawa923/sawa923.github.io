@@ -42,14 +42,19 @@
       </nav>
 
       <div id="tab-chores" class="tab-body">
-        <form id="chore-form" class="row">
-          <input id="chore-title" placeholder="例：お風呂そうじ" maxlength="100" required>
-          <select id="chore-assignee"></select>
-          <button class="primary">追加</button>
-        </form>
-        <label class="toggle"><input type="checkbox" id="show-done"> 終わったものも表示</label>
-        <ul id="chore-list" class="list"></ul>
-        <p id="chore-empty" class="muted" hidden>家事はまだありません。</p>
+        <div class="month-nav">
+          <button id="prev-month" aria-label="前の月">‹</button>
+          <strong id="month-label"></strong>
+          <button id="next-month" aria-label="次の月">›</button>
+          <button id="this-month" class="ghost">今月</button>
+        </div>
+        <p class="muted hint">終わったらマスを押すとチェックが付きます。もう一度押すと外せます。</p>
+        <div class="grid-wrap">
+          <table class="grid">
+            <thead id="grid-head"></thead>
+            <tbody id="grid-body"></tbody>
+          </table>
+        </div>
       </div>
 
       <div id="tab-logs" class="tab-body" hidden>
