@@ -179,7 +179,12 @@ button.small { padding: 2px 8px; font-size: .8rem; color: var(--muted); }
 .editor .row input { flex: 1 1 160px; min-width: 0; }
 .item-list { list-style: none; margin: 0; padding: 0; }
 .item-list li { display: flex; align-items: center; gap: 6px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.item-list li { flex-wrap: wrap; }
 .item-list li span { flex: 1; }
+.repeat { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.repeat select { font: inherit; font-size: .85rem; padding: 2px 4px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--text); }
+.repeat .day { min-width: 2em; }
+.repeat .day.on { background: var(--plan-bg); border-color: var(--plan); color: var(--plan); font-weight: 700; }
 .editor-foot { display: flex; justify-content: space-between; gap: 8px; }
 .danger { color: var(--error); }
 

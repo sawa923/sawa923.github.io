@@ -285,15 +285,17 @@ function renderGrid() {
         continue;
       }
       const btn = document.createElement("button");
-      // done が false の文書は「予定」の○（チェックとしては数えない）
-      const planned = done && done.done === false;
-      const checked = done && !planned;
+      // done が false の文書は「予定」の○（チェックとしては数えない）。
+      // 繰り返し設定のある項目は、本日以降の空いたマスに自動で○を出す（skip の文書は手で消した印）
+      const auto = date >= todayStr && repeatMatches(item.repeat, date);
+      const checked = done?.done === true;
+      const planned = !checked && (done ? !done.skip : auto);
       btn.className = "cell"
         + (checked ? " done" + (CHECK_COLORS[done.by] ? ` by-${CHECK_COLORS[done.by]}` : "") : "")
         + (planned ? " planned" : "");
       btn.setAttribute("aria-label", `${m}月${d}日 ${item.name}`
         + (checked ? `（${done.by}）` : planned ? "（予定）" : ""));
-      if (done) {
+      if (checked || planned) {
         const mark = document.createElement("span");
         mark.className = "mark";
         mark.textContent = planned ? "○" : "✓";
@@ -306,7 +308,7 @@ function renderGrid() {
           btn.append(by);
         }
       }
-      btn.onclick = () => toggleCheck(id, date, cat, item, done);
+      btn.onclick = () => toggleCheck(id, date, cat, item, { checked, planned, auto });
       cell.append(btn);
       row.append(cell);
     }
@@ -347,16 +349,78 @@ function textCell(id, date, cat, item, value, label) {
 // 「予定」ボタンがオンの間は、マスを押すと✓の代わりに○（予定）を付け外しする
 let planMode = false;
 
-function toggleCheck(id, date, cat, item, done) {
-  const planned = done && done.done === false;
-  // 同じ種類の印がもう付いていれば外す。違う種類なら上書きする（○→✓ など）
-  if (done && planned === planMode) {
-    deleteDoc(doc(db, "chores", id));
-  } else {
-    setDoc(doc(db, "chores", id), {
-      title: item.name, cat: cat.id, key: item.key, date, done: !planMode, by: myName, createdAt: serverTimestamp(),
+function toggleCheck(id, date, cat, item, { checked, planned, auto }) {
+  const ref = doc(db, "chores", id);
+  const save = (fields) => setDoc(ref, {
+    title: item.name, cat: cat.id, key: item.key, date, by: myName, createdAt: serverTimestamp(), ...fields,
+  });
+  if (!planMode) {
+    // 通常：✓を付ける（○は上書き）。✓を外すと、繰り返しの○があればそれに戻る
+    return checked ? deleteDoc(ref) : save({ done: true });
+  }
+  // 予定モード：○を付け外しする。自動の○を消すときは「消した」印を残す
+  if (planned) return auto ? save({ done: false, skip: true }) : deleteDoc(ref);
+  return auto ? deleteDoc(ref) : save({ done: false });
+}
+
+// ---- 繰り返し（自動で○を入れる） ----
+// repeat: { type: "interval", n: 1|2|3, start: "YYYY-MM-DD" }（毎日・1日おき・2日おき）
+//      or { type: "weekly", days: [0..6] }（曜日指定、0 = 日曜）
+const REPEAT_OPTIONS = [["", "繰り返しなし"], ["1", "毎日"], ["2", "1日おき"], ["3", "2日おき"], ["weekly", "曜日指定"]];
+
+function repeatMatches(repeat, date) {
+  if (!repeat) return false;
+  const [y, m, d] = date.split("-").map(Number);
+  if (repeat.type === "weekly") return (repeat.days || []).includes(new Date(y, m - 1, d).getDay());
+  if (repeat.type === "interval") {
+    const [sy, sm, sd] = repeat.start.split("-").map(Number);
+    const diff = Math.round((Date.UTC(y, m - 1, d) - Date.UTC(sy, sm - 1, sd)) / 86400000);
+    return diff >= 0 && diff % repeat.n === 0;
+  }
+  return false;
+}
+
+function repeatValue(repeat) {
+  if (!repeat) return "";
+  return repeat.type === "weekly" ? "weekly" : String(repeat.n);
+}
+
+function setRepeat(key, repeat) {
+  return updateCurrent((c) => ({
+    ...c, items: c.items.map((x) => x.key === key ? { ...x, repeat } : x),
+  }));
+}
+
+function repeatControls(item) {
+  const box = document.createElement("div");
+  box.className = "repeat";
+  const sel = document.createElement("select");
+  sel.setAttribute("aria-label", `${item.name}の繰り返し`);
+  for (const [value, label] of REPEAT_OPTIONS) sel.add(new Option(label, value));
+  sel.value = repeatValue(item.repeat);
+  sel.onchange = () => {
+    const v = sel.value;
+    if (!v) return setRepeat(item.key, null);
+    // 曜日指定に切り替えたときは、とりあえず今日の曜日を選んでおく
+    if (v === "weekly") return setRepeat(item.key, { type: "weekly", days: [new Date().getDay()] });
+    setRepeat(item.key, { type: "interval", n: Number(v), start: today() });
+  };
+  box.append(sel);
+  if (item.repeat?.type === "weekly") {
+    const days = item.repeat.days || [];
+    [...WEEKDAYS].forEach((label, wd) => {
+      const b = document.createElement("button");
+      b.className = "small day" + (days.includes(wd) ? " on" : "");
+      b.textContent = label;
+      b.setAttribute("aria-pressed", String(days.includes(wd)));
+      b.onclick = () => {
+        const next = days.includes(wd) ? days.filter((x) => x !== wd) : [...days, wd].sort();
+        setRepeat(item.key, { type: "weekly", days: next });
+      };
+      box.append(b);
     });
   }
+  return box;
 }
 
 function setPlanMode(on) {
@@ -413,6 +477,7 @@ function renderEditor() {
     del.textContent = "削除";
     del.onclick = () => updateCurrent((c) => ({ ...c, items: c.items.filter((x) => x.key !== item.key) }));
     li.append(name, up, del);
+    if (cat.type !== "text") li.append(repeatControls(item));
     list.append(li);
   });
   $("cat-delete").disabled = categories.length <= 1;
