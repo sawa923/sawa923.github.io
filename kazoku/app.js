@@ -230,7 +230,7 @@ function renderGrid() {
   const cat = currentCategory();
   if (!cat) return;
   // 書き込み中のマスを消さないよう、入力が終わるまで描き直しを待つ
-  if (document.activeElement?.matches(".text-cell, .weight-input")) { renderPending = true; return; }
+  if (document.activeElement?.matches(".weight-input")) { renderPending = true; return; }
   renderPending = false;
   const isText = cat.type === "text";
   const isWeight = cat.type === "weight";
@@ -240,7 +240,7 @@ function renderGrid() {
   $("hint-text").textContent = isWeight
     ? (canWeigh ? "体重を入れるとグラフと前日比が出ます。ほかの場所を押すと保存されます。" : `${WEIGHT_OWNER}の体重です（見るだけ）。`)
     : isText
-    ? "マスを押すと書き込めます。ほかの場所を押すと保存されます。"
+    ? "「＋」で予定を足せます（時刻は入れなくてもOK）。予定を押すと直したり消したりできます。"
     : planMode
       ? "予定を入れるモードです。マスを押すと○が付きます。もう一度押すと外れます。"
       : "終わったらマスを押すとチェックが付きます。もう一度押すと外れます。";
@@ -310,7 +310,7 @@ function renderGrid() {
       const done = checks.get(id);
       const cell = document.createElement("td");
       if (isText) {
-        cell.append(textCell(id, date, cat, item, done?.text || "", `${m}月${d}日 ${item.name}`));
+        cell.append(entryCell(id, date, cat, item, done, `${m}月${d}日 ${item.name}`));
         row.append(cell);
         continue;
       }
@@ -453,35 +453,97 @@ function renderWeightChart(weights, y, m, days) {
   box.replaceChildren(svg);
 }
 
-function textCell(id, date, cat, item, value, label) {
-  const ta = document.createElement("textarea");
-  ta.className = "text-cell" + colorClass(item);
-  ta.rows = 1;
-  ta.maxLength = 200;
-  ta.value = value;
-  ta.setAttribute("aria-label", label);
-  const fit = () => { ta.style.height = "auto"; ta.style.height = ta.scrollHeight + "px"; };
-  ta.addEventListener("input", fit);
-  requestAnimationFrame(fit);
-  ta.addEventListener("blur", () => {
-    // フォーカスが次のマスへ移ってから保存する（描き直しで次のマスが消えないように）
-    setTimeout(() => {
-      const text = ta.value.trim();
-      if (text !== value) {
-        value = text;
-        if (text) {
-          setDoc(doc(db, "chores", id), {
-            title: item.name, cat: cat.id, key: item.key, date, done: true, text, by: myName, createdAt: serverTimestamp(),
-          });
-        } else {
-          deleteDoc(doc(db, "chores", id));
-        }
-      }
-      if (renderPending) renderGrid();
-    }, 0);
-  });
-  return ta;
+// ---- 予定表のマス（箇条書き） ----
+// 1マス = chores の文書1つ。entries: [{ time: "13:30" か "", text }] を時刻順に持つ。
+// 箇条書きになる前に書いた text は、改行ごとに1項目として読む（時刻だけの行は前の項目の時刻にする）
+const TIME_ONLY = /^(\d{1,2})[:：](\d{2})$/;
+
+function cellEntries(data) {
+  if (!data) return [];
+  if (Array.isArray(data.entries)) return data.entries;
+  const entries = [];
+  for (const line of (data.text || "").split("\n").map((l) => l.trim()).filter(Boolean)) {
+    const t = line.match(TIME_ONLY);
+    const last = entries[entries.length - 1];
+    if (t && last && !last.time) last.time = `${t[1].padStart(2, "0")}:${t[2]}`;
+    else entries.push({ time: "", text: line });
+  }
+  return entries;
 }
+
+// 時刻なしの項目を先に（書いた順）、そのあと時刻順
+const sortEntries = (entries) => [...entries].sort((a, b) =>
+  (a.time ? 1 : 0) - (b.time ? 1 : 0) || (a.time || "").localeCompare(b.time || ""));
+
+function entryCell(id, date, cat, item, data, label) {
+  const entries = cellEntries(data);
+  const box = document.createElement("div");
+  box.className = "entry-cell" + colorClass(item);
+  const list = document.createElement("ul");
+  list.className = "entries";
+  entries.forEach((entry, i) => {
+    const li = document.createElement("li");
+    const b = document.createElement("button");
+    b.className = "entry";
+    if (entry.time) {
+      const t = document.createElement("span");
+      t.className = "entry-time";
+      t.textContent = entry.time;
+      b.append(t, " ");
+    }
+    b.append(entry.text);
+    b.setAttribute("aria-label", `${label}：${entry.time ? entry.time + " " : ""}${entry.text}を直す`);
+    b.onclick = () => openEntryDialog({ id, date, cat, item, entries, index: i, label });
+    li.append(b);
+    list.append(li);
+  });
+  const add = document.createElement("button");
+  add.className = "entry-add";
+  add.textContent = "＋";
+  add.setAttribute("aria-label", `${label}に予定を足す`);
+  add.onclick = () => openEntryDialog({ id, date, cat, item, entries, index: -1, label });
+  box.append(list, add);
+  return box;
+}
+
+let entryTarget = null;   // ダイアログで編集中のマス
+
+function openEntryDialog(target) {
+  entryTarget = target;
+  const entry = target.index >= 0 ? target.entries[target.index] : { time: "", text: "" };
+  $("entry-title").textContent = target.label;
+  $("entry-time").value = entry.time;
+  $("entry-text").value = entry.text;
+  $("entry-delete").hidden = target.index < 0;
+  $("entry-dialog").showModal();
+  $("entry-text").focus();
+}
+
+function saveEntries(next) {
+  const { id, date, cat, item } = entryTarget;
+  const ref = doc(db, "chores", id);
+  if (!next.length) return deleteDoc(ref);
+  return setDoc(ref, {
+    title: item.name, cat: cat.id, key: item.key, date, done: true,
+    entries: sortEntries(next), by: myName, createdAt: serverTimestamp(),
+  });
+}
+
+$("entry-form").onsubmit = (e) => {
+  e.preventDefault();
+  const text = $("entry-text").value.trim();
+  if (!text) return;
+  const entry = { time: $("entry-time").value, text: text.slice(0, 100) };
+  const next = [...entryTarget.entries];
+  if (entryTarget.index >= 0) next[entryTarget.index] = entry; else next.push(entry);
+  saveEntries(next);
+  $("entry-dialog").close();
+};
+$("entry-delete").onclick = () => {
+  saveEntries(entryTarget.entries.filter((_, i) => i !== entryTarget.index));
+  $("entry-dialog").close();
+};
+$("entry-cancel").onclick = () => $("entry-dialog").close();
 
 // 「予定」ボタンがオンの間は、マスを押すと✓の代わりに○（予定）を付け外しする
 let planMode = false;
