@@ -112,7 +112,10 @@ const DEFAULT_CATEGORIES = [{
     { key: "note", name: "備考" },
   ],
 }];
-const SETTINGS_VERSION = 2;   // 2 で「予定」を追加
+const SETTINGS_VERSION = 2;
+// 列ごとの文字色（列の名前で決める）
+const COLUMN_COLORS = { "あゆ": "pink" };
+const colorClass = (item) => COLUMN_COLORS[item.name] ? ` color-${COLUMN_COLORS[item.name]}` : "";   // 2 で「予定」を追加
 const WEEKDAYS = "日月火水木金土";
 const settingsRef = () => doc(db, "chores", "_settings");
 
@@ -238,7 +241,7 @@ function renderGrid() {
   for (const item of cat.items) {
     const th = document.createElement("th");
     if (isText) {
-      th.className = "text-head";
+      th.className = "text-head" + colorClass(item);
       th.textContent = item.name;
     } else {
       th.className = "chore-head";
@@ -298,7 +301,7 @@ function renderGrid() {
 
 function textCell(id, date, cat, item, value, label) {
   const ta = document.createElement("textarea");
-  ta.className = "text-cell";
+  ta.className = "text-cell" + colorClass(item);
   ta.rows = 1;
   ta.maxLength = 200;
   ta.value = value;

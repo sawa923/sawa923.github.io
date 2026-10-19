@@ -1,4 +1,5 @@
 :root {
+  --pink: #d63f8c;
   --sun: #d0473a;
   --sat: #2f6fd0;
   --today: #fdf0e8;
@@ -22,6 +23,7 @@
     --accent-text: #1d1c1b;
     --error: #ff7b6b;
     --sun: #ff8a7d;
+    --pink: #ff8cc6;
     --sat: #7fb0ff;
     --today: #3a2c25;
   }
@@ -183,3 +185,4 @@ button.small { padding: 2px 8px; font-size: .8rem; color: var(--muted); }
   margin: 0;
 }
 .text-cell:focus { outline: 2px solid var(--accent); outline-offset: -2px; background: var(--card); }
+.color-pink { color: var(--pink); }
