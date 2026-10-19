@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
   <title>わが家ノート</title>
-  <link rel="stylesheet" href="style.css?v=2">
+  <link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
   <header class="bar">
@@ -36,19 +36,30 @@
     </section>
 
     <section id="view-app" hidden>
-      <nav class="tabs">
-        <button class="tab active" data-tab="chores">家事</button>
-        <button class="tab" data-tab="logs">記録</button>
-      </nav>
+      <nav class="tabs" id="tabs"></nav>
 
-      <div id="tab-chores" class="tab-body">
+      <div id="tab-grid" class="tab-body">
         <div class="month-nav">
           <button id="prev-month" aria-label="前の月">‹</button>
           <strong id="month-label"></strong>
           <button id="next-month" aria-label="次の月">›</button>
           <button id="this-month" class="ghost">今月</button>
         </div>
-        <p class="muted hint">終わったらマスを押すとチェックが付きます。もう一度押すと外れます。</p>
+        <p class="muted hint">終わったらマスを押すとチェックが付きます。もう一度押すと外れます。
+          <button id="edit-toggle" class="small">項目を編集</button></p>
+        <div id="editor" class="editor" hidden>
+          <form id="cat-form" class="row">
+            <input id="cat-name" maxlength="30" aria-label="カテゴリの名前" required>
+            <button>名前を変更</button>
+          </form>
+          <ul id="item-list" class="item-list"></ul>
+          <form id="item-form" class="row">
+            <input id="item-name" placeholder="追加する項目（例：洗濯）" maxlength="20" required>
+            <button class="primary">追加</button>
+          </form>
+          <button id="cat-delete" class="small danger">このカテゴリを削除</button>
+        </div>
+        <p id="no-items" class="muted" hidden>「項目を編集」から列にする項目を追加してください。</p>
         <div class="grid-wrap">
           <table class="grid">
             <thead id="grid-head"></thead>
@@ -71,6 +82,6 @@
     </section>
   </main>
 
-  <script type="module" src="app.js?v=2"></script>
+  <script type="module" src="app.js?v=3"></script>
 </body>
 </html>
