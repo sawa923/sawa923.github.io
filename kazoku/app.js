@@ -15,6 +15,7 @@ const SDK = "https://www.gstatic.com/firebasejs/10.14.1";
 const { initializeApp } = await import(`${SDK}/firebase-app.js`);
 const {
   getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut,
+  setPersistence, browserLocalPersistence,
 } = await import(`${SDK}/firebase-auth.js`);
 const {
   getFirestore, collection, doc, addDoc, setDoc, deleteDoc, getDocs,
@@ -23,16 +24,27 @@ const {
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
+// ブラウザを閉じてもログインしたままにする
+await setPersistence(auth, browserLocalPersistence).catch(() => {});
 const db = getFirestore(app);
 
 let members = [];      // [{ email, name }]
 let myName = "";
 let unsubscribers = [];
 
+// 前回ログインしたアドレスを覚えておき、Google の画面であらかじめ入れておく
+const LAST_EMAIL_KEY = "wagaya-last-email";
+function lastEmail() {
+  try { return localStorage.getItem(LAST_EMAIL_KEY) || ""; } catch { return ""; }
+}
+
 $("login").onclick = async () => {
   $("login-error").hidden = true;
+  const provider = new GoogleAuthProvider();
+  const hint = lastEmail();
+  if (hint) provider.setCustomParameters({ login_hint: hint });
   try {
-    await signInWithPopup(auth, new GoogleAuthProvider());
+    await signInWithPopup(auth, provider);
   } catch (e) {
     $("login-error").textContent = "ログインできませんでした（" + e.code + "）";
     $("login-error").hidden = false;
@@ -52,6 +64,7 @@ onAuthStateChanged(auth, async (user) => {
   }
   $("user-box").hidden = false;
   $("user-name").textContent = user.displayName || user.email;
+  try { localStorage.setItem(LAST_EMAIL_KEY, user.email); } catch {}
 
   // 家族の名簿が読めるかどうかで、登録済みかを判定する
   try {
