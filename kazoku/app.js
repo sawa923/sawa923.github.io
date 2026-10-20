@@ -790,7 +790,7 @@ function entryCell(id, date, cat, item, data, label) {
       const t = document.createElement("span");
       t.className = "entry-time";
       t.textContent = span;
-      b.append(t, " ");
+      b.append(t);
     }
     b.append(entry.text);
     b.setAttribute("aria-label", `${label}：${span ? span + " " : ""}${entry.text}を直す`);
