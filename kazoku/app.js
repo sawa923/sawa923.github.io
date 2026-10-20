@@ -394,10 +394,7 @@ function renderShopping() {
     check.className = "shop-check";
     check.setAttribute("aria-pressed", String(!!item.done));
     check.setAttribute("aria-label", `${item.title}を${item.done ? "まだ買っていないに戻す" : "買ったにする"}`);
-    check.onclick = () => setDoc(doc(db, "chores", item.id), {
-      title: item.title, cat: "shopping", date: "shop", qty: item.qty || "", memo: item.memo || "",
-      by: item.by, createdAt: item.createdAt || serverTimestamp(), done: !item.done,
-    });
+    check.onclick = () => saveShopItem(item, { done: !item.done });
     const main = document.createElement("div");
     main.className = "shop-main";
     const name = document.createElement("span");
@@ -419,7 +416,26 @@ function renderShopping() {
     del.textContent = "×";
     del.setAttribute("aria-label", `${item.title}を消す`);
     del.onclick = () => deleteDoc(doc(db, "chores", item.id));
-    li.append(check, main, del);
+    // 個数（1より小さくはしない）
+    const count = item.count || 1;
+    const stepper = document.createElement("div");
+    stepper.className = "shop-count";
+    const minus = document.createElement("button");
+    minus.className = "small";
+    minus.textContent = "−";
+    minus.disabled = count <= 1;
+    minus.setAttribute("aria-label", `${item.title}を1つ減らす`);
+    minus.onclick = () => saveShopItem(item, { count: count - 1 });
+    const num = document.createElement("span");
+    num.textContent = count;
+    num.setAttribute("aria-label", `${item.title}の個数`);
+    const plus = document.createElement("button");
+    plus.className = "small";
+    plus.textContent = "＋";
+    plus.setAttribute("aria-label", `${item.title}を1つ増やす`);
+    plus.onclick = () => saveShopItem(item, { count: Math.min(count + 1, 99) });
+    stepper.append(minus, num, plus);
+    li.append(check, main, stepper, del);
     list.append(li);
   }
   const bought = items.filter((x) => x.done).length;
@@ -428,13 +444,21 @@ function renderShopping() {
   $("shop-clear").textContent = `買った物を消す（${bought}）`;
 }
 
+function saveShopItem(item, changes) {
+  return setDoc(doc(db, "chores", item.id), {
+    title: item.title, cat: "shopping", date: "shop", done: !!item.done, count: item.count || 1,
+    qty: item.qty || "", memo: item.memo || "", by: item.by || myName,
+    createdAt: item.createdAt || serverTimestamp(), ...changes,
+  });
+}
+
 $("shop-form").onsubmit = (e) => {
   e.preventDefault();
   const title = $("shop-name").value.trim();
   if (!title) return;
   setDoc(doc(db, "chores", "shop_" + newId()), {
-    title: title.slice(0, 50), cat: "shopping", date: "shop", done: false,
-    qty: $("shop-qty").value.trim().slice(0, 20), memo: $("shop-memo").value.trim().slice(0, 50),
+    title: title.slice(0, 50), cat: "shopping", date: "shop", done: false, count: 1,
+    memo: $("shop-memo").value.trim().slice(0, 50),
     by: myName, createdAt: serverTimestamp(),
   });
   $("shop-form").reset();

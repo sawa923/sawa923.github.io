@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
   <title>わが家ノート</title>
-  <link rel="stylesheet" href="style.css?v=18">
+  <link rel="stylesheet" href="style.css?v=19">
 </head>
 <body>
   <header class="bar">
@@ -86,11 +86,10 @@
             <button class="primary">追加</button>
           </div>
           <div class="row">
-            <input id="shop-qty" class="shop-qty-input" maxlength="20" placeholder="数量（任意）" aria-label="数量">
             <input id="shop-memo" maxlength="50" placeholder="メモ（任意）" aria-label="メモ">
           </div>
         </form>
-        <p class="muted hint">買ったら左の丸を押すと線が引かれて下へ移ります。</p>
+        <p class="muted hint">買ったら左の丸を押すと線が引かれて下へ移ります。個数は −／＋ で変えられます。</p>
         <p id="shop-empty" class="muted" hidden>まだ何もありません。</p>
         <ul id="shop-list" class="shop-list"></ul>
         <button id="shop-clear" class="small danger shop-clear" hidden></button>
@@ -124,6 +123,6 @@
     </form>
   </dialog>
 
-  <script type="module" src="app.js?v=18"></script>
+  <script type="module" src="app.js?v=19"></script>
 </body>
 </html>
