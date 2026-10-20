@@ -82,6 +82,7 @@ onAuthStateChanged(auth, async (user) => {
   selectTab(currentTab);
   watchSettings();
   watchShopping();
+  watchTodos();
   watchMonth();
   scrollToToday();
   watchLogs(user);
@@ -130,8 +131,14 @@ const DEFAULT_CATEGORIES = [{
   name: "買い物",
   type: "shopping",
   items: [],
+}, {
+  // type: "todo" は家族で共有する ToDo リスト（期限と担当つき）
+  id: "todo",
+  name: "ToDo",
+  type: "todo",
+  items: [],
 }];
-const SETTINGS_VERSION = 5;   // 2 で「予定」、3 で「体重」、4 で「天気」、5 で「買い物」を追加
+const SETTINGS_VERSION = 6;   // 2 で「予定」、3 で「体重」、4 で「天気」、5 で「買い物」、6 で「ToDo」を追加
 const WEIGHT_OWNER = "たく";
 // 列ごとの文字色（列の名前で決める）
 const COLUMN_COLORS = { "たく": "blue", "あゆ": "pink" };
@@ -161,7 +168,7 @@ function watchSettings() {
     const data = snap.exists() ? snap.data() : {};
     let saved = data.categories;
     // 古い設定には、あとから増えたタブを足す（一度保存したあとは消しても戻らない）
-    for (const [id, version] of [["yotei", 2], ["weight", 3], ["weather", 4], ["shopping", 5]]) {
+    for (const [id, version] of [["yotei", 2], ["weight", 3], ["weather", 4], ["shopping", 5], ["todo", 6]]) {
       if (saved && (data.version || 1) < version && !saved.some((c) => c.id === id)) {
         saved = [...saved, DEFAULT_CATEGORIES.find((c) => c.id === id)];
       }
@@ -203,15 +210,17 @@ function renderTabs() {
 function selectTab(id) {
   currentTab = id;
   const type = currentCategory()?.type;
-  const weather = type === "weather", shopping = type === "shopping";
-  $("tab-grid").hidden = id === "logs" || weather || shopping;
+  const weather = type === "weather", shopping = type === "shopping", todo = type === "todo";
+  $("tab-grid").hidden = id === "logs" || weather || shopping || todo;
   $("tab-logs").hidden = id !== "logs";
   $("tab-weather").hidden = !weather;
   $("tab-shopping").hidden = !shopping;
+  $("tab-todo").hidden = !todo;
   setEditor(false);
   renderTabs();
   if (weather) renderWeather();
   else if (shopping) renderShopping();
+  else if (todo) renderTodos();
   else if (id !== "logs") { renderGrid(); renderEditor(); scrollToToday(); }
 }
 
@@ -247,7 +256,7 @@ let renderPending = false;
 
 function renderGrid() {
   const cat = currentCategory();
-  if (!cat || cat.type === "weather" || cat.type === "shopping") return;
+  if (!cat || ["weather", "shopping", "todo"].includes(cat.type)) return;
   // 書き込み中のマスを消さないよう、入力が終わるまで描き直しを待つ
   if (document.activeElement?.matches(".weight-input")) { renderPending = true; return; }
   renderPending = false;
@@ -466,6 +475,105 @@ $("shop-form").onsubmit = (e) => {
 };
 $("shop-clear").onclick = () => {
   for (const item of shopItems.filter((x) => x.done)) deleteDoc(doc(db, "chores", item.id));
+};
+
+// ---- ToDo リスト ----
+// 1件 = chores の文書1つ（ID は todo_…）。title が内容、done が「済んだ」。
+// due は期限日（"YYYY-MM-DD" か ""）、who は担当（"たく" / "あゆ" / "2人" か ""）
+let todoItems = [];
+const WHO_COLORS = { "たく": "blue", "あゆ": "pink" };
+
+function watchTodos() {
+  const q = query(collection(db, "chores"), where("cat", "==", "todo"));
+  unsubscribers.push(onSnapshot(q, (snap) => {
+    todoItems = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    renderTodos();
+  }));
+}
+
+function addDays(date, n) {
+  const [y, m, d] = date.split("-").map(Number);
+  const t = new Date(y, m - 1, d + n);
+  return ymd(t.getFullYear(), t.getMonth() + 1, t.getDate());
+}
+
+function renderTodos() {
+  if ($("tab-todo").hidden) return;
+  const todayStr = today(), tomorrow = addDays(todayStr, 1);
+  // 済んでいない物が上。その中は期限の近い順（期限なしは後ろ、追加した順）。済んだ物は下へ
+  const items = [...todoItems].sort((a, b) =>
+    (a.done ? 1 : 0) - (b.done ? 1 : 0)
+    || (a.done ? 0 : (a.due ? 0 : 1) - (b.due ? 0 : 1) || (a.due || "").localeCompare(b.due || ""))
+    || shopTime(a) - shopTime(b));
+  const list = $("todo-list");
+  list.replaceChildren();
+  for (const item of items) {
+    const li = document.createElement("li");
+    const late = !item.done && item.due && item.due < todayStr;
+    const soon = !item.done && item.due && !late && item.due <= tomorrow;
+    li.className = "shop-item todo-item" + (item.done ? " bought" : "") + (late ? " late" : soon ? " soon" : "");
+    const check = document.createElement("button");
+    check.className = "shop-check";
+    check.setAttribute("aria-pressed", String(!!item.done));
+    check.setAttribute("aria-label", `${item.title}を${item.done ? "まだに戻す" : "済んだにする"}`);
+    check.onclick = () => setDoc(doc(db, "chores", item.id), {
+      title: item.title, cat: "todo", date: "todo", due: item.due || "", who: item.who || "",
+      by: item.by || myName, createdAt: item.createdAt || serverTimestamp(), done: !item.done,
+    });
+    const main = document.createElement("div");
+    main.className = "shop-main";
+    const name = document.createElement("span");
+    name.className = "shop-name";
+    name.textContent = item.title;
+    main.append(name);
+    if (item.who) {
+      const who = document.createElement("span");
+      who.className = "todo-who" + (WHO_COLORS[item.who] ? ` color-${WHO_COLORS[item.who]}` : "");
+      who.textContent = item.who;
+      main.append(" ", who);
+    }
+    const sub = document.createElement("div");
+    sub.className = "shop-sub muted";
+    let dueText = "";
+    if (item.due) {
+      const [, m, d] = item.due.split("-").map(Number);
+      dueText = `期限 ${m}月${d}日` + (late ? "（過ぎています）" : item.due === todayStr ? "（今日）" : item.due === tomorrow ? "（明日）" : "");
+    }
+    if (dueText) {
+      const due = document.createElement("span");
+      due.className = "todo-due";
+      due.textContent = dueText;
+      sub.append(due);
+    }
+    if (item.by) sub.append((dueText ? "・" : "") + `${item.by}が追加`);
+    main.append(sub);
+    const del = document.createElement("button");
+    del.className = "small shop-del";
+    del.textContent = "×";
+    del.setAttribute("aria-label", `${item.title}を消す`);
+    del.onclick = () => deleteDoc(doc(db, "chores", item.id));
+    li.append(check, main, del);
+    list.append(li);
+  }
+  const done = items.filter((x) => x.done).length;
+  $("todo-empty").hidden = items.length > 0;
+  $("todo-clear").hidden = done === 0;
+  $("todo-clear").textContent = `済んだ物を消す（${done}）`;
+}
+
+$("todo-form").onsubmit = (e) => {
+  e.preventDefault();
+  const title = $("todo-name").value.trim();
+  if (!title) return;
+  setDoc(doc(db, "chores", "todo_" + newId()), {
+    title: title.slice(0, 80), cat: "todo", date: "todo", done: false,
+    due: $("todo-due").value, who: $("todo-who").value, by: myName, createdAt: serverTimestamp(),
+  });
+  $("todo-form").reset();
+  $("todo-name").focus();
+};
+$("todo-clear").onclick = () => {
+  for (const item of todoItems.filter((x) => x.done)) deleteDoc(doc(db, "chores", item.id));
 };
 
 // ---- 天気（青梅市） ----

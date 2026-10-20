@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
   <title>わが家ノート</title>
-  <link rel="stylesheet" href="style.css?v=19">
+  <link rel="stylesheet" href="style.css?v=20">
 </head>
 <body>
   <header class="bar">
@@ -95,6 +95,30 @@
         <button id="shop-clear" class="small danger shop-clear" hidden></button>
       </div>
 
+      <div id="tab-todo" class="tab-body" hidden>
+        <form id="todo-form" class="shop-form">
+          <div class="row">
+            <input id="todo-name" maxlength="80" placeholder="やること（例：網戸の掃除）" aria-label="やること" required>
+            <button class="primary">追加</button>
+          </div>
+          <div class="row todo-options">
+            <label>期限 <input id="todo-due" type="date"></label>
+            <label>担当
+              <select id="todo-who">
+                <option value="">なし</option>
+                <option>たく</option>
+                <option>あゆ</option>
+                <option>2人</option>
+              </select>
+            </label>
+          </div>
+        </form>
+        <p class="muted hint">済んだら左の丸を押すと線が引かれて下へ移ります。期限が明日までの物は黄色、過ぎた物は赤で表示します。</p>
+        <p id="todo-empty" class="muted" hidden>まだ何もありません。</p>
+        <ul id="todo-list" class="shop-list"></ul>
+        <button id="todo-clear" class="small danger shop-clear" hidden></button>
+      </div>
+
       <div id="tab-logs" class="tab-body" hidden>
         <form id="log-form">
           <div class="row">
@@ -123,6 +147,6 @@
     </form>
   </dialog>
 
-  <script type="module" src="app.js?v=19"></script>
+  <script type="module" src="app.js?v=20"></script>
 </body>
 </html>
