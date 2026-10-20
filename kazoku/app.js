@@ -81,6 +81,7 @@ onAuthStateChanged(auth, async (user) => {
   show("view-app");
   selectTab(currentTab);
   watchSettings();
+  watchShopping();
   watchMonth();
   scrollToToday();
   watchLogs(user);
@@ -123,8 +124,14 @@ const DEFAULT_CATEGORIES = [{
   name: "天気",
   type: "weather",
   items: [],
+}, {
+  // type: "shopping" は家族で共有する買い物リスト
+  id: "shopping",
+  name: "買い物",
+  type: "shopping",
+  items: [],
 }];
-const SETTINGS_VERSION = 4;   // 2 で「予定」、3 で「体重」、4 で「天気」を追加
+const SETTINGS_VERSION = 5;   // 2 で「予定」、3 で「体重」、4 で「天気」、5 で「買い物」を追加
 const WEIGHT_OWNER = "たく";
 // 列ごとの文字色（列の名前で決める）
 const COLUMN_COLORS = { "たく": "blue", "あゆ": "pink" };
@@ -154,7 +161,7 @@ function watchSettings() {
     const data = snap.exists() ? snap.data() : {};
     let saved = data.categories;
     // 古い設定には、あとから増えたタブを足す（一度保存したあとは消しても戻らない）
-    for (const [id, version] of [["yotei", 2], ["weight", 3], ["weather", 4]]) {
+    for (const [id, version] of [["yotei", 2], ["weight", 3], ["weather", 4], ["shopping", 5]]) {
       if (saved && (data.version || 1) < version && !saved.some((c) => c.id === id)) {
         saved = [...saved, DEFAULT_CATEGORIES.find((c) => c.id === id)];
       }
@@ -195,13 +202,16 @@ function renderTabs() {
 
 function selectTab(id) {
   currentTab = id;
-  const weather = currentCategory()?.type === "weather";
-  $("tab-grid").hidden = id === "logs" || weather;
+  const type = currentCategory()?.type;
+  const weather = type === "weather", shopping = type === "shopping";
+  $("tab-grid").hidden = id === "logs" || weather || shopping;
   $("tab-logs").hidden = id !== "logs";
   $("tab-weather").hidden = !weather;
+  $("tab-shopping").hidden = !shopping;
   setEditor(false);
   renderTabs();
   if (weather) renderWeather();
+  else if (shopping) renderShopping();
   else if (id !== "logs") { renderGrid(); renderEditor(); scrollToToday(); }
 }
 
@@ -237,7 +247,7 @@ let renderPending = false;
 
 function renderGrid() {
   const cat = currentCategory();
-  if (!cat || cat.type === "weather") return;
+  if (!cat || cat.type === "weather" || cat.type === "shopping") return;
   // 書き込み中のマスを消さないよう、入力が終わるまで描き直しを待つ
   if (document.activeElement?.matches(".weight-input")) { renderPending = true; return; }
   renderPending = false;
@@ -355,6 +365,84 @@ function renderGrid() {
   }
   if (isWeight) renderWeightChart(weights, y, m, days);
 }
+
+// ---- 買い物リスト ----
+// 1品 = chores の文書1つ（ID は shop_…）。title が品名、done が「買った」。
+// date は "shop" にして、月の表の読み込み（日付の範囲）に入らないようにする
+let shopItems = [];
+
+function watchShopping() {
+  const q = query(collection(db, "chores"), where("cat", "==", "shopping"));
+  unsubscribers.push(onSnapshot(q, (snap) => {
+    shopItems = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    renderShopping();
+  }));
+}
+
+const shopTime = (x) => x.createdAt?.toMillis?.() ?? Date.now();
+
+function renderShopping() {
+  if ($("tab-shopping").hidden) return;
+  // まだ買っていない物を上に（追加した順）、買った物は下へ
+  const items = [...shopItems].sort((a, b) => (a.done ? 1 : 0) - (b.done ? 1 : 0) || shopTime(a) - shopTime(b));
+  const list = $("shop-list");
+  list.replaceChildren();
+  for (const item of items) {
+    const li = document.createElement("li");
+    li.className = "shop-item" + (item.done ? " bought" : "");
+    const check = document.createElement("button");
+    check.className = "shop-check";
+    check.setAttribute("aria-pressed", String(!!item.done));
+    check.setAttribute("aria-label", `${item.title}を${item.done ? "まだ買っていないに戻す" : "買ったにする"}`);
+    check.onclick = () => setDoc(doc(db, "chores", item.id), {
+      title: item.title, cat: "shopping", date: "shop", qty: item.qty || "", memo: item.memo || "",
+      by: item.by, createdAt: item.createdAt || serverTimestamp(), done: !item.done,
+    });
+    const main = document.createElement("div");
+    main.className = "shop-main";
+    const name = document.createElement("span");
+    name.className = "shop-name";
+    name.textContent = item.title;
+    main.append(name);
+    if (item.qty) {
+      const qty = document.createElement("span");
+      qty.className = "shop-qty";
+      qty.textContent = item.qty;
+      main.append(" ", qty);
+    }
+    const sub = document.createElement("div");
+    sub.className = "shop-sub muted";
+    sub.textContent = [item.memo, item.by && `${item.by}が追加`].filter(Boolean).join("・");
+    main.append(sub);
+    const del = document.createElement("button");
+    del.className = "small shop-del";
+    del.textContent = "×";
+    del.setAttribute("aria-label", `${item.title}を消す`);
+    del.onclick = () => deleteDoc(doc(db, "chores", item.id));
+    li.append(check, main, del);
+    list.append(li);
+  }
+  const bought = items.filter((x) => x.done).length;
+  $("shop-empty").hidden = items.length > 0;
+  $("shop-clear").hidden = bought === 0;
+  $("shop-clear").textContent = `買った物を消す（${bought}）`;
+}
+
+$("shop-form").onsubmit = (e) => {
+  e.preventDefault();
+  const title = $("shop-name").value.trim();
+  if (!title) return;
+  setDoc(doc(db, "chores", "shop_" + newId()), {
+    title: title.slice(0, 50), cat: "shopping", date: "shop", done: false,
+    qty: $("shop-qty").value.trim().slice(0, 20), memo: $("shop-memo").value.trim().slice(0, 50),
+    by: myName, createdAt: serverTimestamp(),
+  });
+  $("shop-form").reset();
+  $("shop-name").focus();
+};
+$("shop-clear").onclick = () => {
+  for (const item of shopItems.filter((x) => x.done)) deleteDoc(doc(db, "chores", item.id));
+};
 
 // ---- 天気（青梅市） ----
 // Open-Meteo（無料・APIキー不要）から、過去7日と今後14日の日ごとの天気を読む
