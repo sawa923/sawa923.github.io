@@ -269,3 +269,8 @@ button.small { padding: 2px 8px; font-size: .8rem; color: var(--muted); }
 .todo-item.soon .todo-due { color: var(--plan); font-weight: 700; }
 .todo-item.late { background: color-mix(in srgb, var(--error) 14%, transparent); }
 .todo-item.late .todo-due { color: var(--error); font-weight: 700; }
+.entry-times { display: flex; align-items: flex-end; gap: 6px; }
+.entry-times label { flex: 1; min-width: 0; }
+.entry-times input { width: 100%; }
+.entry-tilde { padding-bottom: 10px; color: var(--muted); }
+.entry-note { margin: 0; font-size: .75rem; text-align: left; }

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
   <title>わが家ノート</title>
-  <link rel="stylesheet" href="style.css?v=21">
+  <link rel="stylesheet" href="style.css?v=22">
 </head>
 <body>
   <header class="bar">
@@ -124,7 +124,12 @@
   <dialog id="entry-dialog" class="entry-dialog">
     <form id="entry-form">
       <p id="entry-title" class="entry-dialog-title"></p>
-      <label>時刻（なくてもOK）<input id="entry-time" type="time"></label>
+      <p class="muted entry-note">時刻は入れなくてもOK（終わりだけは付けられません）</p>
+      <div class="entry-times">
+        <label>始まり<input id="entry-time" type="time"></label>
+        <span class="entry-tilde">～</span>
+        <label>終わり<input id="entry-end" type="time"></label>
+      </div>
       <label>予定<input id="entry-text" maxlength="100" placeholder="例：松木さん" required></label>
       <div class="entry-dialog-foot">
         <button type="button" id="entry-delete" class="small danger">削除</button>
@@ -135,6 +140,6 @@
     </form>
   </dialog>
 
-  <script type="module" src="app.js?v=21"></script>
+  <script type="module" src="app.js?v=22"></script>
 </body>
 </html>

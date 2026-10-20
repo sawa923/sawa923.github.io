@@ -772,6 +772,9 @@ function cellEntries(data) {
 const sortEntries = (entries) => [...entries].sort((a, b) =>
   (a.time ? 1 : 0) - (b.time ? 1 : 0) || (a.time || "").localeCompare(b.time || ""));
 
+// 「13:00～15:00」または「13:00」
+const entryTimeText = (entry) => entry.time ? entry.time + (entry.end ? `～${entry.end}` : "") : "";
+
 function entryCell(id, date, cat, item, data, label) {
   const entries = cellEntries(data);
   const box = document.createElement("div");
@@ -782,14 +785,15 @@ function entryCell(id, date, cat, item, data, label) {
     const li = document.createElement("li");
     const b = document.createElement("button");
     b.className = "entry";
-    if (entry.time) {
+    const span = entryTimeText(entry);
+    if (span) {
       const t = document.createElement("span");
       t.className = "entry-time";
-      t.textContent = entry.time;
+      t.textContent = span;
       b.append(t, " ");
     }
     b.append(entry.text);
-    b.setAttribute("aria-label", `${label}：${entry.time ? entry.time + " " : ""}${entry.text}を直す`);
+    b.setAttribute("aria-label", `${label}：${span ? span + " " : ""}${entry.text}を直す`);
     b.onclick = () => openEntryDialog({ id, date, cat, item, entries, index: i, label });
     li.append(b);
     list.append(li);
@@ -810,6 +814,7 @@ function openEntryDialog(target) {
   const entry = target.index >= 0 ? target.entries[target.index] : { time: "", text: "" };
   $("entry-title").textContent = target.label;
   $("entry-time").value = entry.time;
+  $("entry-end").value = entry.end || "";
   $("entry-text").value = entry.text;
   $("entry-delete").hidden = target.index < 0;
   $("entry-dialog").showModal();
@@ -830,7 +835,10 @@ $("entry-form").onsubmit = (e) => {
   e.preventDefault();
   const text = $("entry-text").value.trim();
   if (!text) return;
-  const entry = { time: $("entry-time").value, text: text.slice(0, 100) };
+  // 終わりの時刻は、始まりの時刻があるときだけ残す
+  const time = $("entry-time").value;
+  const end = time ? $("entry-end").value : "";
+  const entry = { time, text: text.slice(0, 100), ...(end ? { end } : {}) };
   const next = [...entryTarget.entries];
   if (entryTarget.index >= 0) next[entryTarget.index] = entry; else next.push(entry);
   saveEntries(next);
