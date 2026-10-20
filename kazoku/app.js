@@ -135,8 +135,15 @@ const DEFAULT_CATEGORIES = [{
   name: "ToDo",
   type: "todo",
   items: [],
+}, {
+  // type: "kakeibo" は家計簿（月ごと）。kbCats は支出のカテゴリ（編集できる）
+  id: "kakeibo",
+  name: "家計簿",
+  type: "kakeibo",
+  items: [],
+  kbCats: ["食費", "日用品", "外食", "交通", "光熱費", "通信", "住居", "医療", "娯楽", "その他"],
 }];
-const SETTINGS_VERSION = 6;   // 2 で「予定」、3 で「体重」、4 で「天気」、5 で「買い物」、6 で「ToDo」を追加
+const SETTINGS_VERSION = 7;   // 2 で「予定」、3 で「体重」、4 で「天気」、5 で「買い物」、6 で「ToDo」、7 で「家計簿」を追加
 const WEIGHT_OWNER = "たく";
 // 列ごとの文字色（列の名前で決める）
 const COLUMN_COLORS = { "たく": "blue", "あゆ": "pink" };
@@ -166,7 +173,7 @@ function watchSettings() {
     const data = snap.exists() ? snap.data() : {};
     let saved = data.categories;
     // 古い設定には、あとから増えたタブを足す（一度保存したあとは消しても戻らない）
-    for (const [id, version] of [["yotei", 2], ["weight", 3], ["weather", 4], ["shopping", 5], ["todo", 6]]) {
+    for (const [id, version] of [["yotei", 2], ["weight", 3], ["weather", 4], ["shopping", 5], ["todo", 6], ["kakeibo", 7]]) {
       if (saved && (data.version || 1) < version && !saved.some((c) => c.id === id)) {
         saved = [...saved, DEFAULT_CATEGORIES.find((c) => c.id === id)];
       }
@@ -207,16 +214,18 @@ function renderTabs() {
 function selectTab(id) {
   currentTab = id;
   const type = currentCategory()?.type;
-  const weather = type === "weather", shopping = type === "shopping", todo = type === "todo";
-  $("tab-grid").hidden = weather || shopping || todo;
+  const weather = type === "weather", shopping = type === "shopping", todo = type === "todo", kakeibo = type === "kakeibo";
+  $("tab-grid").hidden = weather || shopping || todo || kakeibo;
   $("tab-weather").hidden = !weather;
   $("tab-shopping").hidden = !shopping;
   $("tab-todo").hidden = !todo;
+  $("tab-kakeibo").hidden = !kakeibo;
   setEditor(false);
   renderTabs();
   if (weather) renderWeather();
   else if (shopping) renderShopping();
   else if (todo) renderTodos();
+  else if (kakeibo) { resetKbForm(); renderKakeibo(); }
   else { renderGrid(); renderEditor(); scrollToToday(); }
 }
 
@@ -236,15 +245,18 @@ function watchMonth() {
   const y = month.getFullYear(), m = month.getMonth() + 1;
   const days = new Date(y, m, 0).getDate();
   $("month-label").textContent = `${y}年${m}月`;
+  $("kb-month-label").textContent = `${y}年${m}月`;
   // 体重の前日比のため、前の月の分も読み込む
   const prev = new Date(y, m - 2, 1);
   const q = query(collection(db, "chores"),
     where("date", ">=", ymd(prev.getFullYear(), prev.getMonth() + 1, 1)), where("date", "<=", ymd(y, m, days)));
   checks = new Map();
   renderGrid();
+  renderKakeibo();
   unwatchMonth = onSnapshot(q, (snap) => {
     checks = new Map(snap.docs.map((d) => [d.id, d.data()]));
     renderGrid();
+    renderKakeibo();
   });
 }
 
@@ -252,7 +264,7 @@ let renderPending = false;
 
 function renderGrid() {
   const cat = currentCategory();
-  if (!cat || ["weather", "shopping", "todo"].includes(cat.type)) return;
+  if (!cat || ["weather", "shopping", "todo", "kakeibo"].includes(cat.type)) return;
   // 書き込み中のマスを消さないよう、入力が終わるまで描き直しを待つ
   if (document.activeElement?.matches(".weight-input")) { renderPending = true; return; }
   renderPending = false;
@@ -471,6 +483,175 @@ $("shop-form").onsubmit = (e) => {
 };
 $("shop-clear").onclick = () => {
   for (const item of shopItems.filter((x) => x.done)) deleteDoc(doc(db, "chores", item.id));
+};
+
+// ---- 家計簿 ----
+// 1件 = chores の文書1つ（ID は kb_…）。date は本当の日付なので、月の表と一緒に読み込まれる。
+// kind は "out"（支出）か "in"（収入）、amount は円（整数）、kbCat はカテゴリ、payer は払った人
+const KB_INCOME_CATS = ["給料", "ボーナス", "臨時収入", "その他"];
+const KB_PAYERS = ["たく", "あゆ"];
+let kbEditing = null;   // 編集中の文書 ID
+let kbKind = "out";
+
+const yen = (n) => `${Math.round(n).toLocaleString("ja-JP")}円`;
+const kbCategory = () => categories.find((c) => c.type === "kakeibo");
+const kbExpenseCats = () => kbCategory()?.kbCats?.length ? kbCategory().kbCats : DEFAULT_CATEGORIES.find((c) => c.id === "kakeibo").kbCats;
+
+function kbMonthEntries() {
+  const y = month.getFullYear(), m = month.getMonth() + 1;
+  const prefix = `${y}-${String(m).padStart(2, "0")}-`;
+  return [...checks.entries()]
+    .filter(([, x]) => x.cat === "kakeibo" && x.date?.startsWith(prefix))
+    .map(([id, x]) => ({ id, ...x }));
+}
+
+function setKbKind(kind, keepCat) {
+  kbKind = kind;
+  for (const b of document.querySelectorAll("#kb-kind button")) {
+    b.classList.toggle("on", b.dataset.kind === kind);
+    b.setAttribute("aria-pressed", String(b.dataset.kind === kind));
+  }
+  const sel = $("kb-cat");
+  const prev = keepCat ?? sel.value;
+  sel.replaceChildren();
+  for (const c of kind === "in" ? KB_INCOME_CATS : kbExpenseCats()) sel.add(new Option(c, c));
+  if ([...sel.options].some((o) => o.value === prev)) sel.value = prev;
+  $("kb-cat-edit").hidden = kind === "in";
+}
+
+function resetKbForm() {
+  kbEditing = null;
+  $("kb-form").reset();
+  // 今日が表示中の月なら今日、違えばその月の1日
+  const y = month.getFullYear(), m = month.getMonth() + 1;
+  const t = today();
+  $("kb-date").value = t.startsWith(`${y}-${String(m).padStart(2, "0")}`) ? t : ymd(y, m, 1);
+  $("kb-payer").value = KB_PAYERS.includes(myName) ? myName : KB_PAYERS[0];
+  setKbKind("out", kbExpenseCats()[0]);
+  $("kb-submit").textContent = "追加";
+  $("kb-cancel").hidden = true;
+}
+
+function renderKakeibo() {
+  if ($("tab-kakeibo").hidden) return;
+  const entries = kbMonthEntries();
+  const income = entries.filter((e) => e.kind === "in").reduce((a, e) => a + e.amount, 0);
+  const expense = entries.filter((e) => e.kind !== "in").reduce((a, e) => a + e.amount, 0);
+  $("kb-income").textContent = yen(income);
+  $("kb-expense").textContent = yen(expense);
+  $("kb-balance").textContent = (income - expense < 0 ? "−" : "") + yen(Math.abs(income - expense));
+  $("kb-balance").classList.toggle("minus", income - expense < 0);
+
+  // カテゴリ別の支出（多い順の横棒）
+  const byCat = new Map();
+  for (const e of entries) if (e.kind !== "in") byCat.set(e.kbCat, (byCat.get(e.kbCat) || 0) + e.amount);
+  const rows = [...byCat.entries()].sort((a, b) => b[1] - a[1]);
+  const max = rows[0]?.[1] || 1;
+  const box = $("kb-breakdown");
+  box.replaceChildren();
+  $("kb-breakdown-wrap").hidden = !rows.length;
+  for (const [cat, sum] of rows) {
+    const row = document.createElement("div");
+    row.className = "kb-bar-row";
+    row.innerHTML = `<span class="kb-bar-label"></span><span class="kb-bar"><span class="kb-bar-fill"></span></span><span class="kb-bar-value"></span>`;
+    row.querySelector(".kb-bar-label").textContent = cat;
+    row.querySelector(".kb-bar-fill").style.width = `${(sum / max) * 100}%`;
+    row.querySelector(".kb-bar-value").textContent = `${yen(sum)}（${Math.round((sum / expense) * 100)}%）`;
+    box.append(row);
+  }
+
+  // 一覧（新しい日付が上）
+  const list = $("kb-list");
+  list.replaceChildren();
+  const sorted = entries.sort((a, b) => b.date.localeCompare(a.date) || shopTime(b) - shopTime(a));
+  let lastDate = "";
+  for (const e of sorted) {
+    if (e.date !== lastDate) {
+      lastDate = e.date;
+      const [y, m, d] = e.date.split("-").map(Number);
+      const h = document.createElement("li");
+      h.className = "kb-day";
+      h.textContent = `${m}月${d}日（${WEEKDAYS[new Date(y, m - 1, d).getDay()]}）`;
+      list.append(h);
+    }
+    const li = document.createElement("li");
+    li.className = "kb-item" + (e.kind === "in" ? " income" : "") + (e.id === kbEditing ? " editing" : "");
+    const main = document.createElement("button");
+    main.className = "kb-main";
+    main.setAttribute("aria-label", `${e.kbCat} ${yen(e.amount)}を直す`);
+    const top = document.createElement("span");
+    top.className = "kb-top";
+    const cat = document.createElement("span");
+    cat.className = "kb-cat";
+    cat.textContent = e.kbCat;
+    const amount = document.createElement("span");
+    amount.className = "kb-amount";
+    amount.textContent = (e.kind === "in" ? "+" : "") + yen(e.amount);
+    top.append(cat, amount);
+    const sub = document.createElement("span");
+    sub.className = "kb-sub muted";
+    sub.textContent = [e.memo, e.payer && (e.kind === "in" ? e.payer : `${e.payer}が支払い`)].filter(Boolean).join("・");
+    main.append(top, sub);
+    main.onclick = () => editKb(e);
+    const del = document.createElement("button");
+    del.className = "small shop-del";
+    del.textContent = "×";
+    del.setAttribute("aria-label", `${e.kbCat} ${yen(e.amount)}を消す`);
+    del.onclick = () => {
+      if (confirm(`${e.kbCat} ${yen(e.amount)} を消しますか？`)) deleteDoc(doc(db, "chores", e.id));
+    };
+    li.append(main, del);
+    list.append(li);
+  }
+  $("kb-empty").hidden = entries.length > 0;
+}
+
+function editKb(e) {
+  kbEditing = e.id;
+  $("kb-date").value = e.date;
+  $("kb-amount").value = e.amount;
+  $("kb-payer").value = e.payer || KB_PAYERS[0];
+  $("kb-memo").value = e.memo || "";
+  setKbKind(e.kind === "in" ? "in" : "out", e.kbCat);
+  $("kb-submit").textContent = "更新";
+  $("kb-cancel").hidden = false;
+  renderKakeibo();
+  $("kb-form").scrollIntoView({ block: "start", behavior: "smooth" });
+}
+
+for (const b of document.querySelectorAll("#kb-kind button")) b.onclick = () => setKbKind(b.dataset.kind);
+$("kb-cancel").onclick = () => { resetKbForm(); renderKakeibo(); };
+$("kb-prev").onclick = () => { month.setMonth(month.getMonth() - 1); watchMonth(); resetKbForm(); };
+$("kb-next").onclick = () => { month.setMonth(month.getMonth() + 1); watchMonth(); resetKbForm(); };
+$("kb-this").onclick = () => { month = new Date(); month.setDate(1); watchMonth(); resetKbForm(); };
+$("kb-cat-edit").onclick = async () => {
+  const text = prompt("支出のカテゴリを「、」区切りで入力してください", kbExpenseCats().join("、"));
+  if (text == null) return;
+  const cats = [...new Set(text.split(/[、,，\s]+/).map((c) => c.trim().slice(0, 12)).filter(Boolean))];
+  if (!cats.length) return;
+  await saveCategories(categories.map((c) => c.type === "kakeibo" ? { ...c, kbCats: cats } : c));
+  setKbKind("out");
+};
+
+$("kb-form").onsubmit = (e) => {
+  e.preventDefault();
+  const amount = Math.round(Number($("kb-amount").value));
+  if (!(amount > 0)) return;
+  const kbCat = $("kb-cat").value;
+  const memo = $("kb-memo").value.trim().slice(0, 50);
+  const id = kbEditing || "kb_" + newId();
+  const old = kbEditing ? checks.get(kbEditing) : null;
+  setDoc(doc(db, "chores", id), {
+    title: memo || kbCat, cat: "kakeibo", date: $("kb-date").value, done: true,
+    kind: kbKind, amount, kbCat, memo, payer: $("kb-payer").value,
+    by: old?.by || myName, createdAt: old?.createdAt || serverTimestamp(),
+  });
+  const keepDate = $("kb-date").value, keepPayer = $("kb-payer").value;
+  resetKbForm();
+  // 続けて入力しやすいよう、日付と払った人はそのまま
+  $("kb-date").value = keepDate;
+  $("kb-payer").value = keepPayer;
+  $("kb-amount").focus();
 };
 
 // ---- ToDo リスト ----
