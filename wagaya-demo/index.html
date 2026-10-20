@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="家族で家事・予定・買い物・家計簿を共有するウェブアプリ「わが家ノート」のデモ版">
+  <title>わが家ノート（デモ版）</title>
+  <link rel="stylesheet" href="style.css?v=1">
+</head>
+<body>
+  <header class="bar">
+    <h1>わが家ノート</h1>
+    <div class="demo-box">
+      <label>使う人
+        <select id="demo-me"><option>ひろ</option><option>みか</option></select>
+      </label>
+      <button id="demo-reset" class="ghost">リセット</button>
+    </div>
+  </header>
+
+  <main>
+    <p class="demo-note">これはデモ版です。ログインなしで自由に触れます。データはこの端末（ブラウザ）にだけ保存され、ほかの人には見えません。架空の家族「ひろ」と「みか」のサンプルデータが入っています。</p>
+
+    <section id="view-app">
+      <nav class="tabs" id="tabs"></nav>
+
+      <div id="tab-grid" class="tab-body">
+        <div class="month-nav">
+          <button id="prev-month" aria-label="前の月">‹</button>
+          <strong id="month-label"></strong>
+          <button id="next-month" aria-label="次の月">›</button>
+          <button id="this-month" class="ghost">今月</button>
+        </div>
+        <p class="muted hint"><span id="hint-text"></span>
+          <button id="plan-toggle" class="small plan-toggle" aria-pressed="false">予定</button>
+          <button id="edit-toggle" class="small" aria-expanded="false" aria-controls="editor">項目を編集</button></p>
+        <div id="editor" class="editor" hidden>
+          <form id="cat-form" class="row">
+            <input id="cat-name" maxlength="30" aria-label="カテゴリの名前" required>
+            <button>名前を変更</button>
+          </form>
+          <ul id="item-list" class="item-list"></ul>
+          <form id="item-form" class="row">
+            <input id="item-name" placeholder="追加する項目（例：洗濯）" maxlength="20" required>
+            <button class="primary">追加</button>
+          </form>
+          <div class="editor-foot">
+            <button id="cat-delete" class="small danger">このカテゴリを削除</button>
+            <button id="editor-close" class="small">閉じる</button>
+          </div>
+        </div>
+        <p id="no-items" class="muted" hidden>「項目を編集」から列にする項目を追加してください。</p>
+        <div id="weight-chart" class="weight-chart" hidden></div>
+        <div class="grid-wrap">
+          <table class="grid" id="grid">
+            <thead id="grid-head"></thead>
+            <tbody id="grid-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="tab-weather" class="tab-body" hidden>
+        <p class="muted hint">東京の天気（過去7日と今後14日）</p>
+        <div id="weather-body"></div>
+        <p class="muted credit">天気データ：<a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a></p>
+      </div>
+
+      <div id="tab-shopping" class="tab-body" hidden>
+        <form id="shop-form" class="shop-form">
+          <div class="row">
+            <input id="shop-name" maxlength="50" placeholder="買う物（例：牛乳）" aria-label="買う物" required>
+            <button class="primary">追加</button>
+          </div>
+          <div class="row">
+            <input id="shop-memo" maxlength="50" placeholder="メモ（任意）" aria-label="メモ">
+          </div>
+        </form>
+        <p class="muted hint">買ったら左の丸を押すと線が引かれて下へ移ります。個数は −／＋ で変えられます。</p>
+        <p id="shop-empty" class="muted" hidden>まだ何もありません。</p>
+        <ul id="shop-list" class="shop-list"></ul>
+        <button id="shop-clear" class="small danger shop-clear" hidden></button>
+      </div>
+
+      <div id="tab-kakeibo" class="tab-body" hidden>
+        <div class="month-nav">
+          <button id="kb-prev" aria-label="前の月">‹</button>
+          <strong id="kb-month-label"></strong>
+          <button id="kb-next" aria-label="次の月">›</button>
+          <button id="kb-this" class="ghost">今月</button>
+        </div>
+        <div class="kb-summary">
+          <div><span class="muted">収入</span><strong id="kb-income" class="kb-in"></strong></div>
+          <div><span class="muted">支出</span><strong id="kb-expense"></strong></div>
+          <div><span class="muted">差額</span><strong id="kb-balance"></strong></div>
+        </div>
+        <div id="kb-breakdown-wrap" class="kb-breakdown-wrap" hidden>
+          <p class="kb-heading">支出の内訳</p>
+          <div id="kb-breakdown"></div>
+        </div>
+        <form id="kb-form" class="kb-form">
+          <div id="kb-kind" class="kb-kind" role="group" aria-label="支出か収入か">
+            <button type="button" data-kind="out" class="on" aria-pressed="true">支出</button>
+            <button type="button" data-kind="in" aria-pressed="false">収入</button>
+          </div>
+          <div class="kb-grid">
+            <label class="kb-wide">日付<input id="kb-date" type="date" required></label>
+            <label class="kb-wide">金額（円）<input id="kb-amount" type="number" inputmode="numeric" min="1" max="99999999" step="1" placeholder="例：1200" required></label>
+            <label>カテゴリ
+              <span class="kb-cat-row"><select id="kb-cat"></select><button type="button" id="kb-cat-edit" class="small">編集</button></span>
+            </label>
+            <label>払った人
+              <select id="kb-payer"><option>ひろ</option><option>みか</option></select>
+            </label>
+          </div>
+          <label class="kb-memo-label">メモ（任意）<input id="kb-memo" maxlength="50" placeholder="例：スーパー"></label>
+          <div class="kb-actions">
+            <button type="button" id="kb-cancel" hidden>やめる</button>
+            <button id="kb-submit" class="primary">追加</button>
+          </div>
+        </form>
+        <p id="kb-empty" class="muted" hidden>この月の記録はまだありません。</p>
+        <ul id="kb-list" class="kb-list"></ul>
+      </div>
+
+      <div id="tab-todo" class="tab-body" hidden>
+        <form id="todo-form" class="shop-form">
+          <div class="row">
+            <input id="todo-name" maxlength="80" placeholder="やること（例：網戸の掃除）" aria-label="やること" required>
+            <button class="primary">追加</button>
+          </div>
+          <div class="row todo-options">
+            <label>期限 <input id="todo-due" type="date"></label>
+            <label>担当
+              <select id="todo-who">
+                <option value="">なし</option>
+                <option>ひろ</option>
+                <option>みか</option>
+                <option>2人</option>
+              </select>
+            </label>
+          </div>
+        </form>
+        <p class="muted hint">済んだら左の丸を押すと線が引かれて下へ移ります。期限が明日までの物は黄色、過ぎた物は赤で表示します。</p>
+        <p id="todo-empty" class="muted" hidden>まだ何もありません。</p>
+        <ul id="todo-list" class="shop-list"></ul>
+        <button id="todo-clear" class="small danger shop-clear" hidden></button>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="entry-dialog" class="entry-dialog">
+    <form id="entry-form">
+      <p id="entry-title" class="entry-dialog-title"></p>
+      <p class="muted entry-note">時刻は入れなくてもOK（終わりだけは付けられません）</p>
+      <div class="entry-times">
+        <label>始まり<input id="entry-time" type="time"></label>
+        <span class="entry-tilde">～</span>
+        <label>終わり<input id="entry-end" type="time"></label>
+      </div>
+      <label>予定<input id="entry-text" maxlength="100" placeholder="例：松木さん" required></label>
+      <div class="entry-dialog-foot">
+        <button type="button" id="entry-delete" class="small danger">削除</button>
+        <span></span>
+        <button type="button" id="entry-cancel">やめる</button>
+        <button class="primary">保存</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script type="module" src="app.js?v=1"></script>
+</body>
+</html>
