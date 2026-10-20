@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
   <title>わが家ノート</title>
-  <link rel="stylesheet" href="style.css?v=25">
+  <link rel="stylesheet" href="style.css?v=26">
 </head>
 <body>
   <header class="bar">
@@ -117,8 +117,8 @@
             <button type="button" data-kind="in" aria-pressed="false">収入</button>
           </div>
           <div class="kb-grid">
-            <label>日付<input id="kb-date" type="date" required></label>
-            <label>金額（円）<input id="kb-amount" type="number" inputmode="numeric" min="1" max="99999999" step="1" placeholder="例：1200" required></label>
+            <label class="kb-wide">日付<input id="kb-date" type="date" required></label>
+            <label class="kb-wide">金額（円）<input id="kb-amount" type="number" inputmode="numeric" min="1" max="99999999" step="1" placeholder="例：1200" required></label>
             <label>カテゴリ
               <span class="kb-cat-row"><select id="kb-cat"></select><button type="button" id="kb-cat-edit" class="small">編集</button></span>
             </label>
@@ -181,6 +181,6 @@
     </form>
   </dialog>
 
-  <script type="module" src="app.js?v=25"></script>
+  <script type="module" src="app.js?v=26"></script>
 </body>
 </html>

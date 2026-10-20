@@ -308,3 +308,6 @@ button.small { padding: 2px 8px; font-size: .8rem; color: var(--muted); }
 .kb-item.income .kb-amount { color: var(--check); }
 .kb-sub { font-size: .72rem; text-align: left; }
 .kb-sub:empty { display: none; }
+/* スマホでは日付と金額をそれぞれ1行に（日付欄はブラウザによって縮まないため） */
+.kb-form input[type="date"] { -webkit-appearance: none; appearance: none; max-width: 100%; box-sizing: border-box; min-height: 2.6em; }
+@media (max-width: 480px) { .kb-grid .kb-wide { grid-column: 1 / -1; } }
