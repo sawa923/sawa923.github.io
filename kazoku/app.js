@@ -539,8 +539,9 @@ function renderKakeibo() {
   const expense = entries.filter((e) => e.kind !== "in").reduce((a, e) => a + e.amount, 0);
   $("kb-income").textContent = yen(income);
   $("kb-expense").textContent = yen(expense);
-  $("kb-balance").textContent = (income - expense < 0 ? "−" : "") + yen(Math.abs(income - expense));
-  $("kb-balance").classList.toggle("minus", income - expense < 0);
+  const balance = income - expense;
+  $("kb-balance").textContent = (balance > 0 ? "+" : balance < 0 ? "−" : "") + yen(Math.abs(balance));
+  $("kb-balance").classList.toggle("minus", balance < 0);
 
   // カテゴリ別の支出（多い順の横棒）
   const byCat = new Map();
