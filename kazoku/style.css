@@ -194,11 +194,12 @@ button.small { padding: 2px 8px; font-size: .8rem; color: var(--muted); }
 .entries { list-style: none; margin: 0; padding: 0; }
 .entry {
   display: block; width: 100%; text-align: left; border: 0; background: transparent; color: inherit;
-  padding: 3px 2px 3px 0.9em; text-indent: -0.9em; font: inherit; border-radius: 4px; word-break: break-all;
+  padding: 3px 0 3px 0.8em; font: inherit; border-radius: 4px; word-break: break-all; position: relative;
 }
-.entry::before { content: "・"; }
+.entry::before { content: "・"; position: absolute; left: -0.1em; }
 .entry:hover { background: color-mix(in srgb, currentColor 10%, transparent); }
-.entry-time { font-weight: 700; font-variant-numeric: tabular-nums; }
+/* 時刻は1段目、内容は2段目 */
+.entry-time { display: block; font-weight: 700; font-variant-numeric: tabular-nums; font-size: .72rem; white-space: nowrap; letter-spacing: -0.03em; }
 .entry-add { display: block; width: 100%; border: 0; background: transparent; color: var(--muted); padding: 2px 0; font-size: .85rem; opacity: .5; }
 .entry-add:hover, .entry-add:focus { opacity: 1; }
 .entry-cell .entries:empty + .entry-add { min-height: 32px; }
@@ -269,8 +270,7 @@ button.small { padding: 2px 8px; font-size: .8rem; color: var(--muted); }
 .todo-item.soon .todo-due { color: var(--plan); font-weight: 700; }
 .todo-item.late { background: color-mix(in srgb, var(--error) 14%, transparent); }
 .todo-item.late .todo-due { color: var(--error); font-weight: 700; }
-.entry-times { display: flex; align-items: flex-end; gap: 6px; }
-.entry-times label { flex: 1; min-width: 0; }
+.entry-times { display: flex; flex-direction: column; gap: 10px; }
 .entry-times input { width: 100%; }
-.entry-tilde { padding-bottom: 10px; color: var(--muted); }
+.entry-tilde { display: none; }
 .entry-note { margin: 0; font-size: .75rem; text-align: left; }
