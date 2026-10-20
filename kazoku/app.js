@@ -117,8 +117,14 @@ const DEFAULT_CATEGORIES = [{
   name: "体重",
   type: "weight",
   items: [],
+}, {
+  // type: "weather" は青梅市の天気（Open-Meteo から読むだけ。Firestore は使わない）
+  id: "weather",
+  name: "天気",
+  type: "weather",
+  items: [],
 }];
-const SETTINGS_VERSION = 3;   // 2 で「予定」、3 で「体重」を追加
+const SETTINGS_VERSION = 4;   // 2 で「予定」、3 で「体重」、4 で「天気」を追加
 const WEIGHT_OWNER = "たく";
 // 列ごとの文字色（列の名前で決める）
 const COLUMN_COLORS = { "たく": "blue", "あゆ": "pink" };
@@ -148,7 +154,7 @@ function watchSettings() {
     const data = snap.exists() ? snap.data() : {};
     let saved = data.categories;
     // 古い設定には、あとから増えたタブを足す（一度保存したあとは消しても戻らない）
-    for (const [id, version] of [["yotei", 2], ["weight", 3]]) {
+    for (const [id, version] of [["yotei", 2], ["weight", 3], ["weather", 4]]) {
       if (saved && (data.version || 1) < version && !saved.some((c) => c.id === id)) {
         saved = [...saved, DEFAULT_CATEGORIES.find((c) => c.id === id)];
       }
@@ -189,11 +195,14 @@ function renderTabs() {
 
 function selectTab(id) {
   currentTab = id;
-  $("tab-grid").hidden = id === "logs";
+  const weather = currentCategory()?.type === "weather";
+  $("tab-grid").hidden = id === "logs" || weather;
   $("tab-logs").hidden = id !== "logs";
+  $("tab-weather").hidden = !weather;
   setEditor(false);
   renderTabs();
-  if (id !== "logs") { renderGrid(); renderEditor(); scrollToToday(); }
+  if (weather) renderWeather();
+  else if (id !== "logs") { renderGrid(); renderEditor(); scrollToToday(); }
 }
 
 async function addCategory() {
@@ -228,7 +237,7 @@ let renderPending = false;
 
 function renderGrid() {
   const cat = currentCategory();
-  if (!cat) return;
+  if (!cat || cat.type === "weather") return;
   // 書き込み中のマスを消さないよう、入力が終わるまで描き直しを待つ
   if (document.activeElement?.matches(".weight-input")) { renderPending = true; return; }
   renderPending = false;
@@ -345,6 +354,78 @@ function renderGrid() {
     body.append(row);
   }
   if (isWeight) renderWeightChart(weights, y, m, days);
+}
+
+// ---- 天気（青梅市） ----
+// Open-Meteo（無料・APIキー不要）から、過去7日と今後14日の日ごとの天気を読む
+const WEATHER_URL = "https://api.open-meteo.com/v1/forecast?latitude=35.79&longitude=139.26"
+  + "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max"
+  + "&timezone=Asia%2FTokyo&past_days=7&forecast_days=14";
+let weatherCache = null;   // { at: 読んだ時刻, daily }
+
+// WMO の天気コード → [絵, ことば]
+function weatherLabel(code) {
+  if (code === 0) return ["☀️", "快晴"];
+  if (code === 1) return ["🌤️", "晴れ"];
+  if (code === 2) return ["⛅", "晴れ時々曇り"];
+  if (code === 3) return ["☁️", "曇り"];
+  if (code === 45 || code === 48) return ["🌫️", "霧"];
+  if (code >= 51 && code <= 57) return ["🌦️", "霧雨"];
+  if (code === 61 || code === 80) return ["🌦️", "小雨"];
+  if (code === 63 || code === 81) return ["🌧️", "雨"];
+  if (code === 65 || code === 82) return ["🌧️", "大雨"];
+  if (code === 66 || code === 67) return ["🌧️", "冷たい雨"];
+  if (code >= 71 && code <= 77) return ["❄️", "雪"];
+  if (code === 85 || code === 86) return ["🌨️", "にわか雪"];
+  if (code >= 95) return ["⛈️", "雷雨"];
+  return ["", "—"];
+}
+
+async function renderWeather() {
+  const box = $("weather-body");
+  if (!weatherCache || Date.now() - weatherCache.at > 30 * 60 * 1000) {
+    if (!weatherCache) box.innerHTML = `<p class="muted">天気を読み込んでいます…</p>`;
+    try {
+      const res = await fetch(WEATHER_URL);
+      if (!res.ok) throw new Error(res.status);
+      weatherCache = { at: Date.now(), daily: (await res.json()).daily };
+    } catch (e) {
+      if (!weatherCache) { box.innerHTML = `<p class="error">天気を読み込めませんでした。少し待ってから開き直してください。</p>`; return; }
+    }
+  }
+  const d = weatherCache.daily;
+  const todayStr = today();
+  const table = document.createElement("table");
+  table.className = "grid weather-grid";
+  table.innerHTML = `<thead><tr><th class="col-date">日付</th><th class="col-wd">曜日</th><th>天気</th><th>最高 / 最低</th><th class="col-rain">降水確率</th></tr></thead>`;
+  const body = document.createElement("tbody");
+  d.time.forEach((date, i) => {
+    const [, m, day] = date.split("-").map(Number);
+    const wd = new Date(date + "T00:00").getDay();
+    const [icon, label] = weatherLabel(d.weather_code[i]);
+    const hi = d.temperature_2m_max[i], lo = d.temperature_2m_min[i], rain = d.precipitation_probability_max[i];
+    const row = document.createElement("tr");
+    if (wd === 0) row.classList.add("sun");
+    if (wd === 6) row.classList.add("sat");
+    if (date === todayStr) row.classList.add("today");
+    if (date < todayStr) row.classList.add("past");
+    const cells = [
+      ["th", `${m}月${day}日`], ["td", `(${WEEKDAYS[wd]})`, "wd"],
+      ["td", `<span class="w-icon">${icon}</span> ${label}`, "w-label"],
+      ["td", hi == null ? "—" : `<span class="t-hi">${Math.round(hi)}°</span> / <span class="t-lo">${Math.round(lo)}°</span>`],
+      ["td", rain == null ? "—" : `${rain}%`],
+    ];
+    for (const [tag, html, cls] of cells) {
+      const c = document.createElement(tag);
+      c.innerHTML = html;
+      if (cls) c.className = cls;
+      row.append(c);
+    }
+    body.append(row);
+  });
+  table.append(body);
+  box.replaceChildren(table);
+  requestAnimationFrame(() => box.querySelector("tr.today")?.scrollIntoView({ block: "center" }));
 }
 
 // ---- 体重 ----
