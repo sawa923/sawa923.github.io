@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
   <title>わが家ノート</title>
-  <link rel="stylesheet" href="style.css?v=16">
+  <link rel="stylesheet" href="style.css?v=17">
 </head>
 <body>
   <header class="bar">
@@ -73,6 +73,12 @@
         </div>
       </div>
 
+      <div id="tab-weather" class="tab-body" hidden>
+        <p class="muted hint">青梅市の天気（過去7日と今後14日）</p>
+        <div id="weather-body"></div>
+        <p class="muted credit">天気データ：<a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a></p>
+      </div>
+
       <div id="tab-logs" class="tab-body" hidden>
         <form id="log-form">
           <div class="row">
@@ -101,6 +107,6 @@
     </form>
   </dialog>
 
-  <script type="module" src="app.js?v=16"></script>
+  <script type="module" src="app.js?v=17"></script>
 </body>
 </html>
