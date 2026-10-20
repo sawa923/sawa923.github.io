@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
   <title>わが家ノート</title>
-  <link rel="stylesheet" href="style.css?v=17">
+  <link rel="stylesheet" href="style.css?v=18">
 </head>
 <body>
   <header class="bar">
@@ -79,6 +79,23 @@
         <p class="muted credit">天気データ：<a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a></p>
       </div>
 
+      <div id="tab-shopping" class="tab-body" hidden>
+        <form id="shop-form" class="shop-form">
+          <div class="row">
+            <input id="shop-name" maxlength="50" placeholder="買う物（例：牛乳）" aria-label="買う物" required>
+            <button class="primary">追加</button>
+          </div>
+          <div class="row">
+            <input id="shop-qty" class="shop-qty-input" maxlength="20" placeholder="数量（任意）" aria-label="数量">
+            <input id="shop-memo" maxlength="50" placeholder="メモ（任意）" aria-label="メモ">
+          </div>
+        </form>
+        <p class="muted hint">買ったら左の丸を押すと線が引かれて下へ移ります。</p>
+        <p id="shop-empty" class="muted" hidden>まだ何もありません。</p>
+        <ul id="shop-list" class="shop-list"></ul>
+        <button id="shop-clear" class="small danger shop-clear" hidden></button>
+      </div>
+
       <div id="tab-logs" class="tab-body" hidden>
         <form id="log-form">
           <div class="row">
@@ -107,6 +124,6 @@
     </form>
   </dialog>
 
-  <script type="module" src="app.js?v=17"></script>
+  <script type="module" src="app.js?v=18"></script>
 </body>
 </html>
