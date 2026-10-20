@@ -18,8 +18,8 @@ const {
   setPersistence, browserLocalPersistence,
 } = await import(`${SDK}/firebase-auth.js`);
 const {
-  getFirestore, collection, doc, addDoc, setDoc, deleteDoc, getDocs,
-  onSnapshot, query, where, orderBy, limit, serverTimestamp,
+  getFirestore, collection, doc, setDoc, deleteDoc, getDocs,
+  onSnapshot, query, where, serverTimestamp,
 } = await import(`${SDK}/firebase-firestore.js`);
 
 const app = initializeApp(firebaseConfig);
@@ -77,7 +77,6 @@ onAuthStateChanged(auth, async (user) => {
   }
   myName = members.find((m) => m.email === user.email)?.name || user.displayName || user.email;
   $("user-name").textContent = myName;
-  $("log-date").value = today();
   show("view-app");
   selectTab(currentTab);
   watchSettings();
@@ -85,7 +84,6 @@ onAuthStateChanged(auth, async (user) => {
   watchTodos();
   watchMonth();
   scrollToToday();
-  watchLogs(user);
 });
 
 // ---- カテゴリ（家事など）の月ごとの表 ----
@@ -149,7 +147,7 @@ const WEEKDAYS = "日月火水木金土";
 const settingsRef = () => doc(db, "chores", "_settings");
 
 let categories = DEFAULT_CATEGORIES;
-let currentTab = "kaji";   // カテゴリの id か "logs"
+let currentTab = "kaji";   // カテゴリの id
 let month = new Date();    // 表示中の月（日付は使わない）
 month.setDate(1);
 let checks = new Map();    // 文書 ID → { by }
@@ -174,7 +172,7 @@ function watchSettings() {
       }
     }
     categories = saved && saved.length ? saved : DEFAULT_CATEGORIES;
-    if (currentTab !== "logs" && !currentCategory()) currentTab = categories[0].id;
+    if (!currentCategory()) currentTab = categories[0].id;
     renderTabs();
     renderGrid();
     renderEditor();
@@ -198,7 +196,6 @@ function renderTabs() {
     return b;
   };
   for (const c of categories) add(c.name, c.id);
-  add("記録", "logs");
   const plus = document.createElement("button");
   plus.className = "tab add-tab";
   plus.textContent = "＋";
@@ -211,8 +208,7 @@ function selectTab(id) {
   currentTab = id;
   const type = currentCategory()?.type;
   const weather = type === "weather", shopping = type === "shopping", todo = type === "todo";
-  $("tab-grid").hidden = id === "logs" || weather || shopping || todo;
-  $("tab-logs").hidden = id !== "logs";
+  $("tab-grid").hidden = weather || shopping || todo;
   $("tab-weather").hidden = !weather;
   $("tab-shopping").hidden = !shopping;
   $("tab-todo").hidden = !todo;
@@ -221,7 +217,7 @@ function selectTab(id) {
   if (weather) renderWeather();
   else if (shopping) renderShopping();
   else if (todo) renderTodos();
-  else if (id !== "logs") { renderGrid(); renderEditor(); scrollToToday(); }
+  else { renderGrid(); renderEditor(); scrollToToday(); }
 }
 
 async function addCategory() {
@@ -1012,78 +1008,8 @@ $("cat-delete").onclick = () => {
   selectTab(currentTab);
 };
 
-// ---- 記録 ----
+// ---- 日付 ----
 function today() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
-
-function watchLogs(user) {
-  const q = query(collection(db, "logs"), orderBy("date", "desc"), limit(200));
-  unsubscribers.push(onSnapshot(q, (snap) => {
-    const logs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-    // 同じ日の中は新しい順（書き込み直後は createdAt がまだ空なので一番上に置く）
-    const time = (l) => l.createdAt?.toMillis?.() ?? Infinity;
-    logs.sort((a, b) => b.date.localeCompare(a.date) || time(b) - time(a));
-    renderLogs(logs, user);
-  }));
-}
-
-function renderLogs(logs, user) {
-  const box = $("log-list");
-  box.replaceChildren();
-  let lastDate = "";
-  for (const l of logs) {
-    if (l.date !== lastDate) {
-      lastDate = l.date;
-      const h = document.createElement("h3");
-      h.className = "day";
-      h.textContent = formatDate(l.date);
-      box.append(h);
-    }
-    const item = document.createElement("div");
-    item.className = "log";
-
-    const text = document.createElement("div");
-    text.className = "text";
-    text.textContent = l.text;
-
-    const meta = document.createElement("div");
-    meta.className = "meta";
-    const author = document.createElement("span");
-    author.textContent = l.author;
-    meta.append(author);
-    if (l.authorUid === user.uid) {
-      const del = document.createElement("button");
-      del.className = "small";
-      del.textContent = "削除";
-      del.onclick = () => {
-        if (confirm("この記録を削除しますか？")) deleteDoc(doc(db, "logs", l.id));
-      };
-      meta.append(del);
-    }
-    item.append(text, meta);
-    box.append(item);
-  }
-  $("log-empty").hidden = logs.length > 0;
-}
-
-function formatDate(s) {
-  const [y, m, d] = s.split("-").map(Number);
-  const w = "日月火水木金土"[new Date(y, m - 1, d).getDay()];
-  return `${m}月${d}日（${w}）`;
-}
-
-$("log-form").onsubmit = async (e) => {
-  e.preventDefault();
-  const text = $("log-text").value.trim();
-  if (!text) return;
-  await addDoc(collection(db, "logs"), {
-    date: $("log-date").value,
-    text,
-    author: myName,
-    authorUid: auth.currentUser.uid,
-    createdAt: serverTimestamp(),
-  });
-  $("log-text").value = "";
-};
