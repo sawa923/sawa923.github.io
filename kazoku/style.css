@@ -259,3 +259,13 @@ button.small { padding: 2px 8px; font-size: .8rem; color: var(--muted); }
 .shop-count { flex: none; display: flex; align-items: center; gap: 4px; }
 .shop-count button { min-width: 30px; padding: 4px 0; font-size: .95rem; }
 .shop-count span { min-width: 1.6em; text-align: center; font-variant-numeric: tabular-nums; font-weight: 700; }
+
+/* ---- ToDo ---- */
+.todo-options { align-items: center; font-size: .85rem; color: var(--muted); }
+.todo-options label { display: flex; align-items: center; gap: 6px; }
+.todo-options input, .todo-options select { font: inherit; color: var(--text); background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; }
+.todo-who { font-size: .75rem; font-weight: 700; border: 1px solid currentColor; border-radius: 6px; padding: 0 6px; }
+.todo-item.soon { background: var(--plan-bg); }
+.todo-item.soon .todo-due { color: var(--plan); font-weight: 700; }
+.todo-item.late { background: color-mix(in srgb, var(--error) 14%, transparent); }
+.todo-item.late .todo-due { color: var(--error); font-weight: 700; }
