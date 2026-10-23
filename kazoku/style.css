@@ -311,3 +311,60 @@ button.small { padding: 2px 8px; font-size: .8rem; color: var(--muted); }
 /* スマホでは日付と金額をそれぞれ1行に（日付欄はブラウザによって縮まないため） */
 .kb-form input[type="date"] { -webkit-appearance: none; appearance: none; max-width: 100%; box-sizing: border-box; min-height: 2.6em; }
 @media (max-width: 480px) { .kb-grid .kb-wide { grid-column: 1 / -1; } }
+
+/* ---- かわいい系デザイン ---- */
+:root {
+  --bg: #fff6f9;
+  --card: #ffffff;
+  --line: #f7d8e3;
+  --text: #4a3a42;
+  --muted: #a3899a;
+  --accent: #f27ba8;
+  --accent-text: #ffffff;
+  --today: #fff1d6;
+  --radius: 16px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #241c21;
+    --card: #2f252b;
+    --line: #4a3640;
+    --text: #f5e9ee;
+    --muted: #b79aa8;
+    --accent: #ff94bd;
+    --accent-text: #2a1a22;
+    --today: #3d3122;
+  }
+}
+body {
+  font-family: "Hiragino Maru Gothic ProN", "M PLUS Rounded 1c", system-ui, -apple-system, sans-serif;
+  background-image: radial-gradient(color-mix(in srgb, var(--accent) 14%, transparent) 1.5px, transparent 1.5px);
+  background-size: 22px 22px;
+}
+.bar {
+  background: color-mix(in srgb, var(--accent) 16%, var(--card));
+  border-bottom: 3px dotted color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.bar h1 { color: var(--accent); letter-spacing: .04em; }
+.bar h1::before { content: "🏠 "; }
+.bar h1::after { content: " ♡"; font-size: .9em; }
+.panel, .editor, .weight-chart, .kb-summary div, .kb-breakdown-wrap, .kb-form, .entry-dialog, .log {
+  border-radius: var(--radius);
+  border-width: 2px;
+  box-shadow: 0 3px 0 var(--line);
+}
+button { border-radius: 999px; border-width: 2px; transition: transform .08s; }
+button:active { transform: translateY(1px); }
+input, select, textarea { border-radius: 12px; }
+.tab { font-weight: 700; color: var(--muted); }
+.tab.active { box-shadow: 0 3px 0 color-mix(in srgb, var(--accent) 70%, #000); }
+button.primary { box-shadow: 0 3px 0 color-mix(in srgb, var(--accent) 70%, #000); }
+.month-nav strong { color: var(--accent); }
+.grid { border: 2px solid var(--line); border-radius: var(--radius); border-collapse: separate; border-spacing: 0; }
+.grid th, .grid td { border: 0; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.grid tr > :last-child { border-right: 0; }
+.grid tbody tr:last-child > * { border-bottom: 0; }
+.grid thead th { background: color-mix(in srgb, var(--accent) 10%, var(--card)); color: var(--accent); }
+.grid thead th:first-child { border-top-left-radius: 14px; }
+.grid thead th:last-child { border-top-right-radius: 14px; }
+.cell.done:not(.by-green) .mark, .cell.planned .mark { font-size: 1.2rem; }
