@@ -109,7 +109,7 @@ const DEFAULT_CATEGORIES = [{
   items: [
     { key: "taku", name: "たく" },
     { key: "ayu", name: "あゆ" },
-    { key: "note", name: "備考" },
+    { key: "note", name: "二人の予定" },
   ],
 }, {
   // type: "weight" は体重の表とグラフ（書き込めるのは WEIGHT_OWNER だけ）
@@ -143,7 +143,7 @@ const DEFAULT_CATEGORIES = [{
   items: [],
   kbCats: ["食費", "日用品", "外食", "交通", "光熱費", "通信", "住居", "医療", "娯楽", "その他"],
 }];
-const SETTINGS_VERSION = 7;   // 2 で「予定」、3 で「体重」、4 で「天気」、5 で「買い物」、6 で「ToDo」、7 で「家計簿」を追加
+const SETTINGS_VERSION = 8;   // 2 で「予定」、3 で「体重」、4 で「天気」、5 で「買い物」、6 で「ToDo」、7 で「家計簿」を追加、8 で予定の「備考」を「二人の予定」に改名
 const WEIGHT_OWNER = "たく";
 // 列ごとの文字色（列の名前で決める）
 const COLUMN_COLORS = { "たく": "blue", "あゆ": "pink" };
@@ -177,6 +177,15 @@ function watchSettings() {
       if (saved && (data.version || 1) < version && !saved.some((c) => c.id === id)) {
         saved = [...saved, DEFAULT_CATEGORIES.find((c) => c.id === id)];
       }
+    }
+    // 8 で予定の「備考」列を「二人の予定」に改名（列の key は note のままなので書いた内容はそのまま）
+    if (saved && (data.version || 1) < 8) {
+      let renamed = false;
+      saved = saved.map((c) => c.id !== "yotei" ? c : { ...c, items: c.items.map((it) => {
+        if (it.key === "note" && it.name === "備考") { renamed = true; return { ...it, name: "二人の予定" }; }
+        return it;
+      }) });
+      if (renamed) saveCategories(saved).catch((e) => console.error(e));
     }
     categories = saved && saved.length ? saved : DEFAULT_CATEGORIES;
     if (!currentCategory()) currentTab = categories[0].id;
